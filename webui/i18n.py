@@ -227,6 +227,10 @@ _i18n_key2lang_dict = dict(
         en="Different-speaker pause (ms)",
         zh="不同说话者间停顿(ms)",
     ),
+    task_pause_label=dict(
+        en="Task interval pause (ms)",
+        zh="任务间停顿(ms)",
+    ),
     # Log messages (for console)
     log_saved_complete_dialogue=dict(
         en="Saved complete dialogue audio",

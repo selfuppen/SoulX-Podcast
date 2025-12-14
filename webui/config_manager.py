@@ -29,6 +29,7 @@ def build_current_config_dict(
     language_idx,
     seed,
     diff_spk_pause_ms,
+    task_pause_ms,
     num_speakers,
     num_text_inputs,
     text_inputs: List[str],
@@ -73,6 +74,7 @@ def build_current_config_dict(
         "num_text_inputs": num_text_inputs,
         "seed": int(seed) if seed is not None else 1988,
         "diff_spk_pause_ms": int(diff_spk_pause_ms) if diff_spk_pause_ms is not None else 0,
+        "task_pause_ms": int(task_pause_ms) if task_pause_ms is not None else 500,
         "speakers": speakers[:num_speakers],
         "text_inputs": [t if t is not None else "" for t in text_inputs[:num_text_inputs]],
     }
@@ -87,6 +89,7 @@ def export_current_config(
     language_idx,
     seed,
     diff_spk_pause_ms,
+    task_pause_ms,
     num_speakers,
     num_text_inputs,
     config_name,
@@ -106,6 +109,7 @@ def export_current_config(
         language_idx=language_idx,
         seed=seed,
         diff_spk_pause_ms=diff_spk_pause_ms,
+        task_pause_ms=task_pause_ms,
         num_speakers=num_speakers,
         num_text_inputs=num_text_inputs,
         text_inputs=text_inputs,
@@ -163,17 +167,19 @@ def apply_loaded_config(cfg: dict) -> Tuple[list, str]:
 
     seed_val = int(cfg.get("seed") or 1988)
     diff_pause_val = int(cfg.get("diff_spk_pause_ms") or 0)
+    task_pause_val = int(cfg.get("task_pause_ms") or 500)
 
     speakers = cfg.get("speakers") or []
     text_inputs = cfg.get("text_inputs") or []
 
-    # speakers_state, num_text_inputs_state, num_text_inputs_selector, seed_input, diff_spk_pause_input
+    # speakers_state, num_text_inputs_state, num_text_inputs_selector, seed_input, diff_spk_pause_input, task_pause_input
     result = [
         num_speakers,
         num_text_inputs,
         gr.update(value=num_text_inputs),
         gr.update(value=seed_val),
         gr.update(value=diff_pause_val),
+        gr.update(value=task_pause_val),
     ]
 
     warnings = []
@@ -265,6 +271,7 @@ def _create_empty_updates():
         gr.update(value=1),  # num_text_inputs_selector
         gr.update(value=1988),  # seed_input
         gr.update(value=0),  # diff_spk_pause_input
+        gr.update(value=500),  # task_pause_input
     ])
     for _ in range(MAX_SPEAKERS):
         empty_updates.append(gr.update(visible=False, value=False))  # checkboxes

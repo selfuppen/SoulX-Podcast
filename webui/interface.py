@@ -159,6 +159,14 @@ def render_interface() -> gr.Blocks:
                         interactive=True,
                         scale=1,
                      )
+                     task_pause_input = gr.Number(
+                        label="任务间停顿(ms)",
+                        value=500,
+                        minimum=0,
+                        step=100,
+                        interactive=True,
+                        scale=1,
+                     )
 
                 # Main text input area
                 dialogue_text_inputs_list = []
@@ -413,6 +421,7 @@ def render_interface() -> gr.Blocks:
                 lang_choice,
                 seed_input,
                 diff_spk_pause_input,
+                task_pause_input,
                 speakers_state,
                 num_text_inputs_state,
                 export_config_name_input,
@@ -437,6 +446,7 @@ def render_interface() -> gr.Blocks:
                 num_text_inputs_selector,
                 seed_input,
                 diff_spk_pause_input,
+                task_pause_input,
                 *speaker_checkbox_list,
                 *speaker_audio_list,
                 *speaker_text_list,
@@ -465,6 +475,7 @@ def render_interface() -> gr.Blocks:
                 num_text_inputs_selector,
                 seed_input,
                 diff_spk_pause_input,
+                task_pause_input,
                 *speaker_checkbox_list,
                 *speaker_audio_list,
                 *speaker_text_list,
@@ -498,7 +509,7 @@ def render_interface() -> gr.Blocks:
             fn=collect_and_synthesize_queue,
             inputs=(
                 [num_text_inputs_state] +
-                [speakers_state, seed_input, diff_spk_pause_input] +
+                [speakers_state, seed_input, diff_spk_pause_input, task_pause_input] +
                 dialogue_text_inputs_list +
                 all_speaker_inputs
             ),
@@ -518,7 +529,7 @@ def render_interface() -> gr.Blocks:
             fn=collect_and_synthesize_queue,
             inputs=(
                 [num_text_inputs_state] +
-                [speakers_state, seed_input, diff_spk_pause_input] +
+                [speakers_state, seed_input, diff_spk_pause_input, task_pause_input] +
                 dialogue_text_inputs_list +
                 all_speaker_inputs
             ),
@@ -585,6 +596,7 @@ def render_interface() -> gr.Blocks:
                     separated_files_info,
                     download_file,
                     diff_spk_pause_input,
+                    task_pause_input,
                 ]
             ),
         )

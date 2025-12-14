@@ -253,7 +253,8 @@ def dialogue_synthesis_function(
             return None
 
     # Go synthesis
-    progress_bar = gr.Progress(track_tqdm=True)
+    # 使用 track_tqdm=False 避免影响外部预览框的显示
+    progress_bar = gr.Progress(track_tqdm=False)
     prompt_wav_list = [config[1] for config in speaker_configs_list[:max_spk_used]]
     prompt_text_list = [config[0] for config in speaker_configs_list[:max_spk_used]]
     use_dialect_prompt = any(config[2].strip() != "" for config in speaker_configs_list[:max_spk_used])

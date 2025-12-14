@@ -14,5 +14,5 @@ cd /ygq/rag/workspace/my-Soul-Podcast/SoulX-Podcast
 
 # 启动 web 界面
 # 如果遇到 CUDA OOM 错误，可以降低 --gpu_memory_utilization 参数（例如 0.3 或 0.4）
-python3 webui.py --gpu_memory_utilization 0.5 --llm_engine vllm --model_path /ygq/rag/workspace/SoulX-Podcast-main/pretrained_models/SoulX-Podcast-1.7B-dialect 
+python3 webui.py --gpu_memory_utilization 0.3 --llm_engine vllm --model_path /ygq/rag/workspace/SoulX-Podcast-main/pretrained_models/SoulX-Podcast-1.7B-dialect 
 # python3 webui.py  --model_path /ygq/rag/workspace/SoulX-Podcast-main/pretrained_models/SoulX-Podcast-1.7B-dialect 

@@ -5,6 +5,7 @@ UI callback functions for SoulX-Podcast WebUI.
 
 import re
 import os
+import time
 from datetime import datetime
 from typing import List
 
@@ -294,7 +295,11 @@ def process_single_synthesis(
     task_number: 任务编号（从1开始）
     base_output_dir: 基础输出目录（时间戳文件夹）
     timestamp: 统一的时间戳
+    Returns: (audio_result, saved_files, zip_file_path, output_dir, task_time_seconds)
     """
+    task_start_time = time.time()
+    current_time = datetime.now().strftime('%H-%M-%S')
+    
     speaker_configs = []
     for i in range(0, min(num_speakers * 3, len(speaker_args)), 3):
         if i + 2 < len(speaker_args):
@@ -307,6 +312,8 @@ def process_single_synthesis(
     output_dir = os.path.join(base_output_dir, task_subdir)
     os.makedirs(output_dir, exist_ok=True)
     
+    print(f"[{current_time}] 开始处理任务 {task_number}")
+    
     try:
         result = dialogue_synthesis_function(
             target_text,
@@ -318,18 +325,37 @@ def process_single_synthesis(
             timestamp=timestamp
         )
         
+        task_end_time = time.time()
+        task_time = task_end_time - task_start_time
+        current_time_end = datetime.now().strftime('%H-%M-%S')
+        
         if result is None:
             # dialogue_synthesis_function 返回 None 表示失败
-            return None, [], None, output_dir
+            print(f"[{current_time_end}] 任务 {task_number} 处理失败，耗时: {task_time:.2f} 秒")
+            return None, [], None, output_dir, task_time
         
         audio_result, saved_files = result
-        return audio_result, saved_files, None, output_dir
+        print(f"[{current_time_end}] 任务 {task_number} 处理完成，耗时: {task_time:.2f} 秒")
+        return audio_result, saved_files, None, output_dir, task_time
     except Exception as e:
+        task_end_time = time.time()
+        task_time = task_end_time - task_start_time
+        current_time_end = datetime.now().strftime('%H-%M-%S')
         error_msg = f"process_single_synthesis 执行失败: {str(e)}"
-        print(f"[ERROR] {error_msg}")
+        print(f"[{current_time_end}] [ERROR] {error_msg}")
+        print(f"[{current_time_end}] 任务 {task_number} 处理失败，耗时: {task_time:.2f} 秒")
         import traceback
         traceback.print_exc()
-        return None, [], None, output_dir
+        return None, [], None, output_dir, task_time
+
+
+def write_log_to_file(log_content: str, log_file_path: str):
+    """将日志内容写入文件"""
+    try:
+        with open(log_file_path, 'a', encoding='utf-8') as f:
+            f.write(log_content + '\n')
+    except Exception as e:
+        print(f"[WARNING] 写入日志文件失败: {str(e)}")
 
 
 def collect_and_synthesize_queue(
@@ -337,15 +363,18 @@ def collect_and_synthesize_queue(
     num_speakers,
     seed,
     diff_spk_pause_ms,
+    task_pause_ms,
     *all_text_and_speaker_args
 ):
     """
     处理队列中的所有任务（生成器版本，每完成一个任务就更新预览）
     all_text_and_speaker_args格式: (text1, ..., textN, audio1, text1, dialect1, ...)
+    task_pause_ms: 任务间的停顿时间（毫秒）
     """
     global_lang = get_language()
     num_text = int(num_text_inputs) if num_text_inputs else 1
     num_speaker = int(num_speakers)
+    task_pause_seconds = (int(task_pause_ms) if task_pause_ms is not None else 500) / 1000.0
     
     text_inputs = list(all_text_and_speaker_args[:MAX_TEXT_INPUTS])
     speaker_args = list(all_text_and_speaker_args[MAX_TEXT_INPUTS:])
@@ -371,9 +400,18 @@ def collect_and_synthesize_queue(
         )
         return
     
+    total_start_time = time.time()
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     base_output_dir = os.path.join(os.getcwd(), "outputs", "separated_speakers", timestamp)
     os.makedirs(base_output_dir, exist_ok=True)
+    
+    # 创建日志文件
+    log_file_path = os.path.join(base_output_dir, "synthesis.log")
+    current_time = datetime.now().strftime('%H-%M-%S')
+    initial_log = f"[{current_time}] 开始处理 {len(valid_texts)} 个任务\n"
+    initial_log += f"[{current_time}] 输出目录: {os.path.abspath(base_output_dir)}\n"
+    initial_log += f"[{current_time}] 任务间停顿时间: {task_pause_ms if task_pause_ms is not None else 500} ms\n"
+    write_log_to_file(initial_log, log_file_path)
     
     # 只显示总体进度，不显示每个任务的进度
     # 使用 track_tqdm=False 避免在每个文本框下显示进度条
@@ -382,6 +420,7 @@ def collect_and_synthesize_queue(
     task_audio_results = {}
     all_complete_audio_files = []
     all_generated_files = []
+    task_times = []  # 记录每个任务的耗时
     
     # 初始化所有预览为不可见
     audio_preview_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
@@ -393,18 +432,25 @@ def collect_and_synthesize_queue(
         if task_idx == 0 and len(valid_texts) > 1:
             progress_bar(0, desc=f"开始处理 {len(valid_texts)} 个任务")
         
+        task_start_time = time.time()
         try:
             task_number = task_idx + 1
-            audio_result, saved_files, zip_file_path, output_dir = process_single_synthesis(
+            audio_result, saved_files, zip_file_path, output_dir, task_time = process_single_synthesis(
                 target_text, num_speaker, seed, diff_spk_pause_ms, speaker_args,
                 task_number, base_output_dir, timestamp
             )
             
+            task_times.append(task_time)
+            current_time = datetime.now().strftime('%H-%M-%S')
+            task_log_msg = f"[{current_time}] 任务 {task_idx + 1} (输入框 {text_idx + 1}) 处理完成，耗时: {task_time:.2f} 秒"
+            write_log_to_file(task_log_msg, log_file_path)
+            
             # 检查处理是否成功
             if audio_result is None or not saved_files:
-                error_msg = f"任务 {task_idx + 1} (输入框 {text_idx + 1}) 处理失败，未生成音频文件"
+                error_msg = f"任务 {task_idx + 1} (输入框 {text_idx + 1}) 处理失败，未生成音频文件，耗时: {task_time:.2f} 秒"
                 all_info_messages.append(error_msg)
                 print(f"[WARNING] {error_msg}")
+                write_log_to_file(f"[{current_time}] [WARNING] {error_msg}", log_file_path)
                 continue
             
             task_audio_results[text_idx] = audio_result
@@ -420,6 +466,7 @@ def collect_and_synthesize_queue(
             info_message = f"═══════════════════════════════════\n"
             info_message += f"任务 {task_idx + 1}/{len(valid_texts)} (输入框 {text_idx + 1})\n"
             info_message += f"═══════════════════════════════════\n"
+            info_message += f"⏱️ 处理时间: {task_time:.2f} 秒\n"
             info_message += f"{i18n('files_saved_to')}\n"
             info_message += f"基础文件夹: {os.path.abspath(base_output_dir)}\n"
             info_message += f"任务子文件夹: {task_subdir_name}/\n"
@@ -528,7 +575,7 @@ def collect_and_synthesize_queue(
                     merged_audio_data = None
                     sample_rate = 24000
                     
-                    for audio_file in all_complete_audio_files:
+                    for idx, audio_file in enumerate(all_complete_audio_files):
                         if os.path.exists(audio_file):
                             audio_data, sr = sf.read(audio_file)
                             if sample_rate != sr:
@@ -540,7 +587,8 @@ def collect_and_synthesize_queue(
                             if merged_audio_data is None:
                                 merged_audio_data = audio_data
                             else:
-                                pause_samples = int(0.5 * sample_rate)
+                                # 使用可配置的任务间停顿时间
+                                pause_samples = int(task_pause_seconds * sample_rate)
                                 silence = np.zeros(pause_samples)
                                 merged_audio_data = np.concatenate([merged_audio_data, silence, audio_data])
                     
@@ -565,9 +613,22 @@ def collect_and_synthesize_queue(
                 *current_download_updates,
             )
             
+            # 如果不是最后一个任务，添加任务间停顿
+            if task_idx < len(valid_texts) - 1 and task_pause_seconds > 0:
+                current_time = datetime.now().strftime('%H-%M-%S')
+                pause_log = f"[{current_time}] 任务间停顿 {task_pause_seconds:.2f} 秒..."
+                write_log_to_file(pause_log, log_file_path)
+                time.sleep(task_pause_seconds)
+            
         except Exception as e:
+            task_end_time = time.time()
+            task_time = task_end_time - task_start_time
+            current_time = datetime.now().strftime('%H-%M-%S')
             error_msg = f"任务 {task_idx + 1} 处理失败: {str(e)}\n"
+            error_msg += f"耗时: {task_time:.2f} 秒"
             all_info_messages.append(error_msg)
+            write_log_to_file(f"[{current_time}] [ERROR] {error_msg}", log_file_path)
+            task_times.append(task_time)  # 即使失败也记录时间
             import traceback
             traceback.print_exc()
     
@@ -575,11 +636,15 @@ def collect_and_synthesize_queue(
     merged_audio_path = None
     if all_complete_audio_files and len(all_complete_audio_files) > 0:
         try:
+            current_time = datetime.now().strftime('%H-%M-%S')
+            merge_start_time = time.time()
+            write_log_to_file(f"[{current_time}] 开始合并所有任务音频...", log_file_path)
+            
             merged_audio_path = os.path.join(base_output_dir, "all.wav")
             merged_audio_data = None
             sample_rate = 24000
             
-            for audio_file in all_complete_audio_files:
+            for idx, audio_file in enumerate(all_complete_audio_files):
                 if os.path.exists(audio_file):
                     audio_data, sr = sf.read(audio_file)
                     if sample_rate != sr:
@@ -591,22 +656,48 @@ def collect_and_synthesize_queue(
                     if merged_audio_data is None:
                         merged_audio_data = audio_data
                     else:
-                        pause_samples = int(0.5 * sample_rate)
+                        # 使用可配置的任务间停顿时间
+                        pause_samples = int(task_pause_seconds * sample_rate)
                         silence = np.zeros(pause_samples)
                         merged_audio_data = np.concatenate([merged_audio_data, silence, audio_data])
             
             if merged_audio_data is not None:
                 sf.write(merged_audio_path, merged_audio_data, sample_rate)
+                merge_time = time.time() - merge_start_time
+                current_time = datetime.now().strftime('%H-%M-%S')
                 print(f"[INFO] 已合并所有任务音频到: {merged_audio_path}")
+                write_log_to_file(f"[{current_time}] 音频合并完成，耗时: {merge_time:.2f} 秒", log_file_path)
                 all_generated_files.append(merged_audio_path)
         except Exception as e:
+            current_time = datetime.now().strftime('%H-%M-%S')
             print(f"[ERROR] 合并音频文件时出错: {str(e)}")
+            write_log_to_file(f"[{current_time}] [ERROR] 合并音频文件时出错: {str(e)}", log_file_path)
             import traceback
             traceback.print_exc()
     
     # 更新总体进度为完成
     if len(valid_texts) > 1:
         progress_bar(1.0, desc=f"已完成所有 {len(valid_texts)} 个任务")
+    
+    # 计算总耗时
+    total_end_time = time.time()
+    total_time = total_end_time - total_start_time
+    current_time = datetime.now().strftime('%H-%M-%S')
+    
+    # 记录总耗时和各任务耗时到日志
+    total_log = f"\n[{current_time}] {'='*50}\n"
+    total_log += f"[{current_time}] 所有任务处理完成\n"
+    total_log += f"[{current_time}] 总任务数: {len(valid_texts)}\n"
+    if task_times:
+        total_log += f"[{current_time}] 各任务耗时: "
+        for i, t in enumerate(task_times, 1):
+            total_log += f"任务{i}({t:.2f}s) "
+        total_log += "\n"
+        avg_time = sum(task_times) / len(task_times)
+        total_log += f"[{current_time}] 平均任务耗时: {avg_time:.2f} 秒\n"
+    total_log += f"[{current_time}] 总耗时: {total_time:.2f} 秒\n"
+    total_log += f"[{current_time}] {'='*50}\n"
+    write_log_to_file(total_log, log_file_path)
     
     # 创建 all.zip
     all_zip_path = None
@@ -622,10 +713,20 @@ def collect_and_synthesize_queue(
         final_info_message += f"   📁 合并音频文件: {os.path.basename(merged_audio_path)}\n"
     if all_zip_path and os.path.exists(all_zip_path):
         final_info_message += f"   📦 所有文件压缩包: {os.path.basename(all_zip_path)}\n"
+    final_info_message += f"   📝 日志文件: synthesis.log\n"
     final_info_message += "\n"
     final_info_message += "═══════════════════════════════════\n\n"
     final_info_message += "\n\n".join(all_info_messages)
-    final_info_message += f"\n\n✅ 已完成所有任务 ({len(valid_texts)}/{len(valid_texts)})"
+    final_info_message += f"\n\n{'='*50}\n"
+    final_info_message += f"⏱️ 总处理时间: {total_time:.2f} 秒\n"
+    if task_times:
+        final_info_message += f"⏱️ 各任务耗时: "
+        for i, t in enumerate(task_times, 1):
+            final_info_message += f"任务{i}({t:.2f}s) "
+        final_info_message += "\n"
+        avg_time = sum(task_times) / len(task_times)
+        final_info_message += f"⏱️ 平均任务耗时: {avg_time:.2f} 秒\n"
+    final_info_message += f"✅ 已完成所有任务 ({len(valid_texts)}/{len(valid_texts)})\n"
     
     # 生成最终更新
     final_audio_preview_updates = []
@@ -763,6 +864,7 @@ def change_component_language(lang, *remarks):
         ),
         gr.update(label=i18n("download_all_files_label")),
         gr.update(label=i18n("diff_spk_pause_label")),
+        gr.update(label=i18n("task_pause_label")),
     ])
     return updates
 
