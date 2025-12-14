@@ -305,17 +305,29 @@ def process_single_synthesis(
     output_dir = os.path.join(base_output_dir, task_subdir)
     os.makedirs(output_dir, exist_ok=True)
     
-    audio_result, saved_files = dialogue_synthesis_function(
-        target_text,
-        speaker_configs,
-        seed,
-        int(diff_spk_pause_ms) if diff_spk_pause_ms is not None else 0,
-        output_dir=output_dir,
-        save_separated=True,
-        timestamp=timestamp
-    )
-    
-    return audio_result, saved_files, None, output_dir
+    try:
+        result = dialogue_synthesis_function(
+            target_text,
+            speaker_configs,
+            seed,
+            int(diff_spk_pause_ms) if diff_spk_pause_ms is not None else 0,
+            output_dir=output_dir,
+            save_separated=True,
+            timestamp=timestamp
+        )
+        
+        if result is None:
+            # dialogue_synthesis_function 返回 None 表示失败
+            return None, [], None, output_dir
+        
+        audio_result, saved_files = result
+        return audio_result, saved_files, None, output_dir
+    except Exception as e:
+        error_msg = f"process_single_synthesis 执行失败: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        return None, [], None, output_dir
 
 
 def collect_and_synthesize_queue(
@@ -375,6 +387,13 @@ def collect_and_synthesize_queue(
                 target_text, num_speaker, seed, diff_spk_pause_ms, speaker_args,
                 task_number, base_output_dir, timestamp
             )
+            
+            # 检查处理是否成功
+            if audio_result is None or not saved_files:
+                error_msg = f"任务 {task_idx + 1} (输入框 {text_idx + 1}) 处理失败，未生成音频文件"
+                all_info_messages.append(error_msg)
+                print(f"[WARNING] {error_msg}")
+                continue
             
             task_audio_results[text_idx] = audio_result
             all_generated_files.extend(saved_files)

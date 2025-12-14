@@ -80,6 +80,12 @@ def process_single(
         spks.append(spk)
         texts.append(text)
     
+    # 检查是否成功解析出文本和说话人
+    if not texts or not spks:
+        error_msg = f"process_single: 未能从 target_text_list 中解析出有效的文本或说话人。spks={spks}, texts={texts}"
+        print(error_msg)
+        raise ValueError(error_msg)
+    
     global dataset
     dataitem = {
         "key": "001",
@@ -96,6 +102,11 @@ def process_single(
 
     # assert one data only;
     data = dataset[0]
+    if data is None:
+        error_msg = "process_single: dataset[0] 返回 None，数据处理失败。请检查音频文件路径和格式是否正确。"
+        print(error_msg)
+        raise ValueError(error_msg)
+    
     prompt_mels_for_llm, prompt_mels_lens_for_llm = s3tokenizer.padding(data["log_mel"])
     spk_emb_for_flow = torch.tensor(data["spk_emb"])
     prompt_mels_for_flow = torch.nn.utils.rnn.pad_sequence(
@@ -248,16 +259,38 @@ def dialogue_synthesis_function(
     use_dialect_prompt = any(config[2].strip() != "" for config in speaker_configs_list[:max_spk_used])
     dialect_prompt_text_list = [config[2] for config in speaker_configs_list[:max_spk_used]]
     
-    data = process_single(
-        target_text_list,
-        prompt_wav_list,
-        prompt_text_list,
-        use_dialect_prompt,
-        dialect_prompt_text_list,
-    )
+    try:
+        data = process_single(
+            target_text_list,
+            prompt_wav_list,
+            prompt_text_list,
+            use_dialect_prompt,
+            dialect_prompt_text_list,
+        )
+    except Exception as e:
+        error_msg = f"处理数据时出错: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        gr.Warning(message=error_msg)
+        return None, []
     
-    global model
-    results_dict = model.forward_longform(**data)
+    if data is None:
+        error_msg = "process_single 返回 None，数据处理失败"
+        print(f"[ERROR] {error_msg}")
+        gr.Warning(message=error_msg)
+        return None, []
+    
+    try:
+        global model
+        results_dict = model.forward_longform(**data)
+    except Exception as e:
+        error_msg = f"模型推理时出错: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        gr.Warning(message=error_msg)
+        return None, []
     
     target_audio = None
     sample_rate = 24000
