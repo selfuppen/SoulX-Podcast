@@ -81,13 +81,21 @@ def render_interface() -> gr.Blocks:
                 # Speaker Actions Bar
                 with gr.Row():
                     add_speaker_btn = gr.Button(f"➕ {i18n('add_speaker_btn_label')}", variant="secondary", scale=2)
-                    with gr.Group(visible=False): # Hide quick add for cleaner UI or keep it if essential
-                         pass 
-                    # Quick add implementation hidden to clean up, can be restored if needed
-                    # For now, let's keep the button but make it smaller
-                    quick_add_num = gr.Number(value=1, visible=False) 
-                    quick_add_btn = gr.Button("Quick Add", visible=False)
-
+                    with gr.Group():
+                        with gr.Row():
+                            quick_add_num = gr.Number(
+                                label="", 
+                                value=1, 
+                                minimum=1, 
+                                maximum=MAX_SPEAKERS,
+                                step=1,
+                                precision=0,
+                                scale=1,
+                                container=False,
+                                min_width=60
+                            )
+                            quick_add_btn = gr.Button(f"🚀 {i18n('quick_add_btn_label')}", variant="primary", scale=2, min_width=80)
+                    
                     batch_delete_btn = gr.Button(f"🗑️ {i18n('batch_delete_btn_label')}", variant="stop", scale=1)
                     
                     # Select all/none buttons (small)
@@ -99,24 +107,32 @@ def render_interface() -> gr.Blocks:
                 
                 num_text_inputs_state = gr.State(value=1)
                 
+                # Number of inputs selector
+                with gr.Row():
+                     num_text_inputs_selector = gr.Number(
+                        label="输入框数量 / Number of Inputs",
+                        value=1,
+                        minimum=1,
+                        maximum=MAX_TEXT_INPUTS,
+                        step=1,
+                        precision=0,
+                        interactive=True,
+                        scale=1,
+                     )
+
                 # Main text input area
                 dialogue_text_inputs_list = []
                 dialogue_audio_preview_list = [] # Hidden previews for left column logic
                 dialogue_download_list = []      # Hidden downloads for left column logic
                 
-                # Only showing 1st input by default, simplified for this layout
-                # If multiple inputs are needed, they will stack here.
-                # For the wireframe request, we focus on the main input.
-                
                 # We still need the list for the backend logic
                 with gr.Group():
                      for i in range(MAX_TEXT_INPUTS):
                         dialogue_text_input = gr.Textbox(
-                            label=f"{i18n('dialogue_text_input_label')} {i+1}" if MAX_TEXT_INPUTS > 1 else "",
+                            label=f"{i18n('dialogue_text_input_label')} {i+1}",
                             placeholder=i18n("dialogue_text_input_placeholder"),
-                            lines=15,
+                            lines=12,
                             visible=(i < 1),
-                            show_label=(MAX_TEXT_INPUTS > 1)
                         )
                         dialogue_text_inputs_list.append(dialogue_text_input)
                         
@@ -126,8 +142,12 @@ def render_interface() -> gr.Blocks:
                         dialogue_audio_preview_list.append(preview)
                         dialogue_download_list.append(download)
 
-                # Hidden number selector to maintain compatibility if we want to expand later
-                num_text_inputs_selector = gr.Number(value=1, visible=False)
+                # Update inputs visibility when number changes
+                num_text_inputs_selector.change(
+                    fn=update_text_inputs_visibility,
+                    inputs=[num_text_inputs_selector],
+                    outputs=[num_text_inputs_state] + dialogue_text_inputs_list + dialogue_audio_preview_list + dialogue_download_list
+                )
 
                 # --- 3. Bottom Controls ---
                 gr.Markdown("### ⚙️ 全局设置 & 生成 / Global Settings & Generate", elem_classes=["section-header"])
