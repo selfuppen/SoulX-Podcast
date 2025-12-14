@@ -13,4 +13,4 @@ conda activate soulxpodcast
 cd /ygq/rag/workspace/my-Soul-Podcast/SoulX-Podcast
 
 # 启动 web 界面
-python3 webui.py --model_path ../../SoulX-Podcast-main/pretrained_models/SoulX-Podcast-1.7B-dialect
+python3 webui.py --model_path /ygq/rag/workspace/SoulX-Podcast-main/pretrained_models/SoulX-Podcast-1.7B-dialect

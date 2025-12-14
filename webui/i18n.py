@@ -291,3 +291,14 @@ def get_select_speaker_label(idx: int) -> str:
         return f"Select Speaker {idx}"
     return f"选择说话人 {idx}"
 
+
+def get_speaker_display_label(idx: int, remark: str = "") -> str:
+    """
+    返回用于 Tab/复选框显示的标签。
+    若有备注，则显示为 S{idx}:备注，否则回退到语言化的“选择说话人 {idx}”。
+    """
+    remark_clean = (remark or "").strip()
+    if remark_clean:
+        return f"S{idx}:{remark_clean}"
+    return get_select_speaker_label(idx)
+

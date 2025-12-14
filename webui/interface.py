@@ -7,7 +7,7 @@ import os
 import gradio as gr
 
 from .constants import MAX_SPEAKERS, MAX_TEXT_INPUTS
-from .i18n import i18n, get_i18n_dict
+from .i18n import i18n, get_i18n_dict, get_speaker_display_label
 from .file_manager import list_config_files
 from .components import create_speaker_group
 from .callbacks import (
@@ -19,6 +19,7 @@ from .callbacks import (
     update_text_inputs_visibility,
     collect_and_synthesize_queue,
     change_component_language,
+    update_single_speaker_label,
 )
 from .config_manager import (
     export_current_config,
@@ -57,50 +58,59 @@ def render_interface() -> gr.Blocks:
             with gr.Column(scale=7):
                 
                 # --- 1. Speaker Settings (Tabs) ---
-                gr.Markdown("### 👥 说话人设置 / Speakers", elem_classes=["section-header"])
-                
-                speakers_state = gr.State(value=1)
-                
-                speaker_checkbox_list = []
-                speaker_audio_list = []
-                speaker_text_list = []
-                speaker_dialect_list = []
-                speaker_tabs_list = [] # List of Tab components to toggle visibility
-                
-                with gr.Tabs() as speaker_tabs_container:
-                    for i in range(MAX_SPEAKERS):
-                        # Use Tab instead of Column for visibility toggling
-                        with gr.Tab(label=f"Speaker {i+1}", visible=(i < 1)) as tab:
-                            group, checkbox, audio, text, dialect = create_speaker_group(i + 1)
-                            speaker_checkbox_list.append(checkbox)
-                            speaker_audio_list.append(audio)
-                            speaker_text_list.append(text)
-                            speaker_dialect_list.append(dialect)
-                            speaker_tabs_list.append(tab)
-                
-                # Speaker Actions Bar
-                with gr.Row():
-                    add_speaker_btn = gr.Button(f"➕ {i18n('add_speaker_btn_label')}", variant="secondary", scale=2)
-                    with gr.Group():
-                        with gr.Row():
-                            quick_add_num = gr.Number(
-                                label="", 
-                                value=1, 
-                                minimum=1, 
-                                maximum=MAX_SPEAKERS,
-                                step=1,
-                                precision=0,
-                                scale=1,
-                                container=False,
-                                min_width=60
-                            )
-                            quick_add_btn = gr.Button(f"🚀 {i18n('quick_add_btn_label')}", variant="primary", scale=2, min_width=80)
+                with gr.Accordion("👥 说话人设置 / Speakers", open=False):
+                    speakers_state = gr.State(value=1)
                     
-                    batch_delete_btn = gr.Button(f"🗑️ {i18n('batch_delete_btn_label')}", variant="stop", scale=1)
+                    speaker_checkbox_list = []
+                    speaker_remark_list = []
+                    speaker_audio_list = []
+                    speaker_text_list = []
+                    speaker_dialect_list = []
+                    speaker_tabs_list = [] # List of Tab components to toggle visibility
                     
-                    # Select all/none buttons (small)
-                    select_all_btn = gr.Button(f"☑️", variant="secondary", scale=0, min_width=50)
-                    select_none_btn = gr.Button(f"☐", variant="secondary", scale=0, min_width=50)
+                    with gr.Tabs() as speaker_tabs_container:
+                        for i in range(MAX_SPEAKERS):
+                            tab_label = get_speaker_display_label(i + 1)
+                            with gr.Tab(label=tab_label, visible=(i < 1)) as tab:
+                                group, checkbox, remark, audio, text, dialect = create_speaker_group(i + 1)
+                                speaker_checkbox_list.append(checkbox)
+                                speaker_remark_list.append(remark)
+                                speaker_audio_list.append(audio)
+                                speaker_text_list.append(text)
+                                speaker_dialect_list.append(dialect)
+                                speaker_tabs_list.append(tab)
+                                
+                                # 备注变化时同步更新 Tab 与复选框标签
+                                idx_state = gr.State(i + 1)
+                                remark.change(
+                                    fn=update_single_speaker_label,
+                                    inputs=[remark, idx_state],
+                                    outputs=[checkbox, tab],
+                                )
+                    
+                    # Speaker Actions Bar
+                    with gr.Row():
+                        add_speaker_btn = gr.Button(f"➕ {i18n('add_speaker_btn_label')}", variant="secondary", scale=2)
+                        with gr.Group():
+                            with gr.Row():
+                                quick_add_num = gr.Number(
+                                    label="", 
+                                    value=1, 
+                                    minimum=1, 
+                                    maximum=MAX_SPEAKERS,
+                                    step=1,
+                                    precision=0,
+                                    scale=1,
+                                    container=False,
+                                    min_width=60
+                                )
+                                quick_add_btn = gr.Button(f"🚀 {i18n('quick_add_btn_label')}", variant="primary", scale=2, min_width=80)
+                        
+                        batch_delete_btn = gr.Button(f"🗑️ {i18n('batch_delete_btn_label')}", variant="stop", scale=1)
+                        
+                        # Select all/none buttons (small)
+                        select_all_btn = gr.Button(f"☑️", variant="secondary", scale=0, min_width=50)
+                        select_none_btn = gr.Button(f"☐", variant="secondary", scale=0, min_width=50)
 
                 # --- 2. Dialogue Input ---
                 gr.Markdown("### 📝 对话内容 / Dialogue", elem_classes=["section-header"])
@@ -188,29 +198,30 @@ def render_interface() -> gr.Blocks:
                 
                 # --- Config Management (Collapsed Menu) ---
                 with gr.Accordion("🛠️ 配置管理 / Config", open=False):
+                    gr.Markdown("**导入配置**")
+                    config_file_choices = list_config_files()
+                    with gr.Tabs():
+                        with gr.Tab("选择预设"):
+                            config_dropdown = gr.Dropdown(
+                                label="选择配置文件",
+                                choices=config_file_choices,
+                                value=config_file_choices[0] if config_file_choices else None,
+                                interactive=True
+                            )
+                            with gr.Row():
+                                refresh_config_list_btn = gr.Button("刷新", size="sm")
+                                load_selected_config_btn = gr.Button("加载", variant="primary", size="sm")
+                        with gr.Tab("上传文件"):
+                            import_config_uploader = gr.File(label="JSON文件", file_types=[".json"])
+                            load_uploaded_config_btn = gr.Button("加载上传", variant="primary", size="sm")
+                    load_selected_status = gr.Textbox(label="加载状态", interactive=False, lines=2)
+                    load_uploaded_status = gr.Textbox(visible=False) # Hidden status for upload
+
+                    gr.Markdown("---")
                     with gr.Row():
                         export_config_btn = gr.Button("导出当前配置", size="sm")
                         export_config_file = gr.File(label="导出文件", interactive=False, height=50)
                     export_config_status = gr.Textbox(label="状态", interactive=False, lines=1, show_label=False)
-
-                    gr.Markdown("---")
-                    gr.Markdown("**导入配置**")
-                    with gr.Tabs():
-                        with gr.Tab("上传文件"):
-                             import_config_uploader = gr.File(label="JSON文件", file_types=[".json"])
-                             load_uploaded_config_btn = gr.Button("加载上传", variant="primary", size="sm")
-                        with gr.Tab("选择预设"):
-                             config_dropdown = gr.Dropdown(
-                                label="选择配置文件",
-                                choices=list_config_files(),
-                                value=None,
-                                interactive=True
-                            )
-                             with gr.Row():
-                                 refresh_config_list_btn = gr.Button("刷新", size="sm")
-                                 load_selected_config_btn = gr.Button("加载", variant="primary", size="sm")
-                    load_selected_status = gr.Textbox(label="加载状态", interactive=False, lines=2)
-                    load_uploaded_status = gr.Textbox(visible=False) # Hidden status for upload
 
                 # --- Output Area ---
                 gr.Markdown("### 🔊 当前结果 / Output", elem_classes=["section-header"])
@@ -248,14 +259,14 @@ def render_interface() -> gr.Blocks:
         # Note: We pass speaker_tabs_list instead of speaker_columns to toggle visibility of Tabs
         add_speaker_btn.click(
             fn=add_speaker,
-            inputs=[speakers_state],
+            inputs=[speakers_state] + speaker_remark_list,
             outputs=[speakers_state] + speaker_checkbox_list + speaker_tabs_list
         )
         
         # Keep quick add logic compatible
         quick_add_btn.click(
             fn=quick_add_speakers,
-            inputs=[speakers_state, quick_add_num],
+            inputs=[speakers_state, quick_add_num] + speaker_remark_list,
             outputs=[speakers_state] + speaker_checkbox_list + speaker_tabs_list
         )
         
@@ -278,7 +289,8 @@ def render_interface() -> gr.Blocks:
                 speaker_checkbox_list[i],
                 speaker_audio_list[i],
                 speaker_text_list[i],
-                speaker_dialect_list[i]
+                speaker_dialect_list[i],
+                speaker_remark_list[i],
             ])
         
         all_speaker_outputs_for_delete = []
@@ -287,7 +299,8 @@ def render_interface() -> gr.Blocks:
                 speaker_checkbox_list[i],
                 speaker_audio_list[i],
                 speaker_text_list[i],
-                speaker_dialect_list[i]
+                speaker_dialect_list[i],
+                speaker_remark_list[i],
             ])
         
         batch_delete_btn.click(
@@ -303,6 +316,7 @@ def render_interface() -> gr.Blocks:
                 speaker_audio_list[i],
                 speaker_text_list[i],
                 speaker_dialect_list[i],
+                speaker_remark_list[i],
             ])
 
         export_config_btn.click(
@@ -338,6 +352,7 @@ def render_interface() -> gr.Blocks:
                 *speaker_audio_list,
                 *speaker_text_list,
                 *speaker_dialect_list,
+                *speaker_remark_list,
                 *speaker_tabs_list, # Updated to tabs
                 *dialogue_text_inputs_list,
                 load_uploaded_status,
@@ -357,6 +372,7 @@ def render_interface() -> gr.Blocks:
                 *speaker_audio_list,
                 *speaker_text_list,
                 *speaker_dialect_list,
+                *speaker_remark_list,
                 *speaker_tabs_list, # Updated to tabs
                 *dialogue_text_inputs_list,
                 load_selected_status,
@@ -422,7 +438,7 @@ def render_interface() -> gr.Blocks:
         
         lang_choice.change(
             fn=change_component_language,
-            inputs=[lang_choice],
+            inputs=[lang_choice] + speaker_remark_list,
             outputs=(
                 speaker_checkbox_list +
                 all_speaker_inputs +

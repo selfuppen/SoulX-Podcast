@@ -13,7 +13,13 @@ import gradio as gr
 import soundfile as sf
 
 from .constants import MAX_SPEAKERS, MAX_TEXT_INPUTS
-from .i18n import i18n, get_i18n_dict, get_select_speaker_label, get_language, set_language
+from .i18n import (
+    i18n,
+    get_i18n_dict,
+    get_speaker_display_label,
+    get_language,
+    set_language,
+)
 from .synthesis import dialogue_synthesis_function
 from .file_manager import create_all_zip
 
@@ -22,104 +28,135 @@ from .file_manager import create_all_zip
 # Speaker Management Callbacks
 # =============================================================================
 
-def update_speakers_visibility(num_speakers: int):
+def update_speakers_visibility(num_speakers: int, remarks=None):
     """更新说话人列的可见性和标签"""
+    remark_list = list(remarks) if remarks else []
     updates = []
     for i in range(MAX_SPEAKERS):
         visible = (i < num_speakers)
+        remark_val = remark_list[i] if i < len(remark_list) else ""
+        label = get_speaker_display_label(i + 1, remark_val)
         if visible:
-            updates.append(gr.update(visible=True, label=get_select_speaker_label(i + 1), value=False))
+            updates.append(gr.update(visible=True, label=label, value=False))
         else:
             updates.append(gr.update(visible=False, value=False))
     return updates
 
 
-def add_speaker(current_num: int):
+def add_speaker(current_num: int, *remarks):
     """添加一个说话人"""
+    remark_list = list(remarks) if remarks else []
     new_num = min(current_num + 1, MAX_SPEAKERS)
-    checkbox_updates = update_speakers_visibility(new_num)
-    column_updates = [gr.update(visible=(i < new_num)) for i in range(MAX_SPEAKERS)]
+    checkbox_updates = update_speakers_visibility(new_num, remark_list)
+    column_updates = []
+    for i in range(MAX_SPEAKERS):
+        remark_val = remark_list[i] if i < len(remark_list) else ""
+        column_updates.append(
+            gr.update(
+                visible=(i < new_num),
+                label=get_speaker_display_label(i + 1, remark_val)
+            )
+        )
     return new_num, *checkbox_updates, *column_updates
 
 
-def quick_add_speakers(current_num: int, add_count):
+def quick_add_speakers(current_num: int, add_count, *remarks):
     """快速添加指定数量的说话人"""
+    remark_list = list(remarks) if remarks else []
     add_count = int(add_count) if add_count else 1
     add_count = max(1, min(add_count, MAX_SPEAKERS - current_num))
     new_num = min(current_num + add_count, MAX_SPEAKERS)
-    checkbox_updates = update_speakers_visibility(new_num)
-    column_updates = [gr.update(visible=(i < new_num)) for i in range(MAX_SPEAKERS)]
+    checkbox_updates = update_speakers_visibility(new_num, remark_list)
+    column_updates = []
+    for i in range(MAX_SPEAKERS):
+        remark_val = remark_list[i] if i < len(remark_list) else ""
+        column_updates.append(
+            gr.update(
+                visible=(i < new_num),
+                label=get_speaker_display_label(i + 1, remark_val)
+            )
+        )
     return new_num, *checkbox_updates, *column_updates
 
 
 def batch_delete_speakers(current_num: int, *all_values):
     """批量删除选中的说话人，并重新排列剩余说话人及其数据"""
-    # all_values格式: (checkbox1, audio1, text1, dialect1, checkbox2, ...)
-    checkbox_values = []
-    audio_values = []
-    text_values = []
-    dialect_values = []
-    
+    # all_values格式: (checkbox1, audio1, text1, dialect1, remark1, checkbox2, ...)
+    speaker_data = []
     for i in range(MAX_SPEAKERS):
-        idx = i * 4
-        if idx < len(all_values):
-            checkbox_values.append(all_values[idx])
-            if idx + 1 < len(all_values):
-                audio_values.append(all_values[idx + 1])
-            if idx + 2 < len(all_values):
-                text_values.append(all_values[idx + 2])
-            if idx + 3 < len(all_values):
-                dialect_values.append(all_values[idx + 3])
+        base = i * 5
+        checkbox_val = all_values[base] if base < len(all_values) else False
+        audio_val = all_values[base + 1] if base + 1 < len(all_values) else None
+        text_val = all_values[base + 2] if base + 2 < len(all_values) else ""
+        dialect_val = all_values[base + 3] if base + 3 < len(all_values) else ""
+        remark_val = all_values[base + 4] if base + 4 < len(all_values) else ""
+        speaker_data.append(
+            dict(
+                checkbox=checkbox_val,
+                audio=audio_val,
+                text=text_val,
+                dialect=dialect_val,
+                remark=remark_val,
+            )
+        )
     
-    selected_indices = set([i for i, checked in enumerate(checkbox_values) if checked and i < current_num])
+    selected_indices = {
+        i for i, spk in enumerate(speaker_data) if spk["checkbox"] and i < current_num
+    }
+    
+    def _build_updates(target_num: int, kept: list):
+        updates = []
+        for i in range(MAX_SPEAKERS):
+            if i < target_num and i < len(kept):
+                spk = kept[i]
+                label = get_speaker_display_label(i + 1, spk["remark"])
+                updates.extend(
+                    [
+                        gr.update(visible=True, label=label, value=False),
+                        gr.update(value=spk["audio"]),
+                        gr.update(value=spk["text"]),
+                        gr.update(value=spk["dialect"]),
+                        gr.update(value=spk["remark"]),
+                    ]
+                )
+            else:
+                updates.extend(
+                    [
+                        gr.update(visible=False, value=False),
+                        gr.update(value=None),
+                        gr.update(value=""),
+                        gr.update(value=""),
+                        gr.update(value=""),
+                    ]
+                )
+        tab_updates = [
+            gr.update(
+                visible=(i < target_num),
+                label=get_speaker_display_label(
+                    i + 1, kept[i]["remark"] if i < len(kept) else ""
+                ),
+            )
+            for i in range(MAX_SPEAKERS)
+        ]
+        return updates, tab_updates
     
     if not selected_indices:
         gr.Warning("请至少选择一个说话人进行删除")
-        checkbox_updates = update_speakers_visibility(current_num)
-        result = []
-        for i in range(MAX_SPEAKERS):
-            result.append(checkbox_updates[i])
-            result.append(gr.update())
-            result.append(gr.update())
-            result.append(gr.update())
-        column_updates = [gr.update(visible=(i < current_num)) for i in range(MAX_SPEAKERS)]
-        return current_num, *result, *column_updates
+        kept_list = [speaker_data[i] for i in range(current_num)]
+        updates, tab_updates = _build_updates(current_num, kept_list)
+        return current_num, *updates, *tab_updates
     
     remaining_count = current_num - len(selected_indices)
     if remaining_count < 1:
         gr.Warning("至少需要保留1个说话人")
-        checkbox_updates = update_speakers_visibility(current_num)
-        result = []
-        for i in range(MAX_SPEAKERS):
-            result.append(checkbox_updates[i])
-            result.append(gr.update())
-            result.append(gr.update())
-            result.append(gr.update())
-        column_updates = [gr.update(visible=(i < current_num)) for i in range(MAX_SPEAKERS)]
-        return current_num, *result, *column_updates
+        kept_list = [speaker_data[i] for i in range(current_num)]
+        updates, tab_updates = _build_updates(current_num, kept_list)
+        return current_num, *updates, *tab_updates
     
     kept_indices = [i for i in range(current_num) if i not in selected_indices]
-    new_num = remaining_count
-    
-    result = []
-    for i in range(MAX_SPEAKERS):
-        if i < new_num:
-            old_idx = kept_indices[i]
-            result.append(gr.update(visible=True, label=get_select_speaker_label(i + 1), value=False))
-            audio_val = audio_values[old_idx] if old_idx < len(audio_values) else None
-            result.append(gr.update(value=audio_val))
-            text_val = text_values[old_idx] if old_idx < len(text_values) else ""
-            result.append(gr.update(value=text_val))
-            dialect_val = dialect_values[old_idx] if old_idx < len(dialect_values) else ""
-            result.append(gr.update(value=dialect_val))
-        else:
-            result.append(gr.update(visible=False, value=False))
-            result.append(gr.update(value=None))
-            result.append(gr.update(value=""))
-            result.append(gr.update(value=""))
-    
-    column_updates = [gr.update(visible=(i < new_num)) for i in range(MAX_SPEAKERS)]
-    return new_num, *result, *column_updates
+    kept_list = [speaker_data[i] for i in kept_indices]
+    updates, tab_updates = _build_updates(remaining_count, kept_list)
+    return remaining_count, *updates, *tab_updates
 
 
 def select_all_checkboxes(current_num: int):
@@ -139,6 +176,12 @@ def select_none_checkboxes(current_num: int):
     for i in range(MAX_SPEAKERS):
         updates.append(gr.update(value=False))
     return updates
+
+
+def update_single_speaker_label(remark: str, idx: int):
+    """根据备注更新单个说话人的复选框与 Tab 标签"""
+    label = get_speaker_display_label(idx, remark)
+    return gr.update(label=label), gr.update(label=label)
 
 
 # =============================================================================
@@ -432,17 +475,25 @@ def collect_and_synthesize_queue(
 # Language Switch Callback
 # =============================================================================
 
-def change_component_language(lang):
+def change_component_language(lang, *remarks):
     """Change language for all components."""
-    set_language(["zh", "en"][lang])
+    if isinstance(lang, str):
+        set_language("zh" if lang == "中文" else "en")
+    else:
+        try:
+            set_language(["zh", "en"][int(lang)])
+        except Exception:
+            set_language("zh")
     global_lang = get_language()
     i18n_dict = get_i18n_dict()
     
     checkbox_updates = []
     input_updates = []
     
+    remark_list = list(remarks) if remarks else []
     for i in range(MAX_SPEAKERS):
-        checkbox_updates.append(gr.update(label=get_select_speaker_label(i + 1)))
+        remark_val = remark_list[i] if i < len(remark_list) else ""
+        checkbox_updates.append(gr.update(label=get_speaker_display_label(i + 1, remark_val)))
     
     for i in range(MAX_SPEAKERS):
         input_updates.extend([

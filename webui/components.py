@@ -6,7 +6,7 @@ UI component creation functions for SoulX-Podcast WebUI.
 import gradio as gr
 
 from .constants import DIALECT_PROMPT_DATA
-from .i18n import get_select_speaker_label
+from .i18n import get_speaker_display_label
 
 
 # =============================================================================
@@ -18,9 +18,14 @@ def create_speaker_group(spk_num: int):
     with gr.Group(visible=True) as group:
         # 添加复选框用于选择删除
         checkbox = gr.Checkbox(
-            label=get_select_speaker_label(spk_num),
+            label=get_speaker_display_label(spk_num),
             value=False,
             scale=0,
+        )
+        remark = gr.Textbox(
+            label="备注名",
+            placeholder="例如：佩奇",
+            lines=1,
         )
         prompt_audio = gr.Audio(
             label=f"说话人 {spk_num} 参考语音",
@@ -39,7 +44,7 @@ def create_speaker_group(spk_num: int):
             value="",
             lines=3,
         )
-    return group, checkbox, prompt_audio, prompt_text, dialect_prompt_text
+    return group, checkbox, remark, prompt_audio, prompt_text, dialect_prompt_text
 
 
 # =============================================================================

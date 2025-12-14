@@ -11,7 +11,7 @@ from typing import List, Tuple
 import gradio as gr
 
 from .constants import CONFIG_DIR, MAX_SPEAKERS, MAX_TEXT_INPUTS
-from .i18n import get_select_speaker_label
+from .i18n import get_speaker_display_label
 from .utils import coerce_audio_value_to_path, coerce_gradio_file_to_path
 from .file_manager import (
     ensure_config_dir,
@@ -48,18 +48,20 @@ def build_current_config_dict(
     num_speakers = int(num_speakers) if num_speakers else 1
     num_text_inputs = int(num_text_inputs) if num_text_inputs else 1
 
-    # speaker_values 格式: [audio1, text1, dialect1, audio2, text2, dialect2, ...]
+    # speaker_values 格式: [audio1, text1, dialect1, remark1, audio2, text2, dialect2, remark2, ...]
     speakers = []
     for i in range(MAX_SPEAKERS):
-        base = i * 3
+        base = i * 4
         audio_val = speaker_values[base] if base < len(speaker_values) else None
         text_val = speaker_values[base + 1] if base + 1 < len(speaker_values) else ""
         dialect_val = speaker_values[base + 2] if base + 2 < len(speaker_values) else ""
+        remark_val = speaker_values[base + 3] if base + 3 < len(speaker_values) else ""
         speakers.append(
             {
                 "prompt_audio": coerce_audio_value_to_path(audio_val),
                 "prompt_text": text_val if text_val is not None else "",
                 "dialect_prompt_text": dialect_val if dialect_val is not None else "",
+                "remark": remark_val if remark_val is not None else "",
             }
         )
 
@@ -156,21 +158,11 @@ def apply_loaded_config(cfg: dict) -> Tuple[list, str]:
         gr.update(value=diff_pause_val),
     ]
 
-    # speaker checkboxes
-    for i in range(MAX_SPEAKERS):
-        if i < num_speakers:
-            result.append(gr.update(visible=True, value=False, label=get_select_speaker_label(i + 1)))
-        else:
-            result.append(gr.update(visible=False, value=False))
-
-    # speaker audio, text, dialect
     warnings = []
-    audio_updates = []
-    text_updates = []
-    dialect_updates = []
+    normalized_speakers = []
     for i in range(MAX_SPEAKERS):
+        spk = speakers[i] if i < len(speakers) else {}
         if i < num_speakers:
-            spk = speakers[i] if i < len(speakers) else {}
             audio_path = spk.get("prompt_audio")
             if isinstance(audio_path, str) and audio_path.strip():
                 if not os.path.isabs(audio_path):
@@ -180,20 +172,57 @@ def apply_loaded_config(cfg: dict) -> Tuple[list, str]:
                     audio_path = None
             else:
                 audio_path = None
-            audio_updates.append(gr.update(value=audio_path))
-            text_updates.append(gr.update(value=spk.get("prompt_text", "") or ""))
-            dialect_updates.append(gr.update(value=spk.get("dialect_prompt_text", "") or ""))
+            normalized_speakers.append(
+                dict(
+                    audio=audio_path,
+                    text=spk.get("prompt_text", "") or "",
+                    dialect=spk.get("dialect_prompt_text", "") or "",
+                    remark=spk.get("remark", "") or "",
+                )
+            )
         else:
-            audio_updates.append(gr.update(value=None))
-            text_updates.append(gr.update(value=""))
-            dialect_updates.append(gr.update(value=""))
+            normalized_speakers.append(
+                dict(audio=None, text="", dialect="", remark="")
+            )
+
+    # speaker checkboxes
+    for i in range(MAX_SPEAKERS):
+        if i < num_speakers:
+            remark_val = normalized_speakers[i]["remark"]
+            result.append(
+                gr.update(
+                    visible=True,
+                    value=False,
+                    label=get_speaker_display_label(i + 1, remark_val),
+                )
+            )
+        else:
+            result.append(gr.update(visible=False, value=False))
+
+    # speaker audio, text, dialect, remark
+    audio_updates = []
+    text_updates = []
+    dialect_updates = []
+    remark_updates = []
+    for i in range(MAX_SPEAKERS):
+        spk = normalized_speakers[i]
+        audio_updates.append(gr.update(value=spk["audio"]))
+        text_updates.append(gr.update(value=spk["text"]))
+        dialect_updates.append(gr.update(value=spk["dialect"]))
+        remark_updates.append(gr.update(value=spk["remark"]))
     result.extend(audio_updates)
     result.extend(text_updates)
     result.extend(dialect_updates)
+    result.extend(remark_updates)
 
-    # speaker columns
+    # speaker tabs
     for i in range(MAX_SPEAKERS):
-        result.append(gr.update(visible=(i < num_speakers)))
+        result.append(
+            gr.update(
+                visible=(i < num_speakers),
+                label=get_speaker_display_label(i + 1, normalized_speakers[i]["remark"]),
+            )
+        )
 
     # dialogue text inputs
     for i in range(MAX_TEXT_INPUTS):
@@ -228,7 +257,9 @@ def _create_empty_updates():
     for _ in range(MAX_SPEAKERS):
         empty_updates.append(gr.update(value=""))  # dialect
     for _ in range(MAX_SPEAKERS):
-        empty_updates.append(gr.update(visible=False))  # columns
+        empty_updates.append(gr.update(value=""))  # remark
+    for i in range(MAX_SPEAKERS):
+        empty_updates.append(gr.update(visible=False, label=get_speaker_display_label(i + 1)))  # tabs
     for _ in range(MAX_TEXT_INPUTS):
         empty_updates.append(gr.update(visible=False, value=""))
     return empty_updates
