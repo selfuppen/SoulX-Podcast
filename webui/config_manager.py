@@ -35,8 +35,16 @@ def build_current_config_dict(
     speaker_values: List,
 ) -> dict:
     """Build a configuration dictionary from current UI state."""
-    # language_idx: 0=中文, 1=English
-    language = "zh" if int(language_idx) == 0 else "en"
+    # language_idx: 0=中文, 1=English. If it comes as a string, we need to handle it.
+    if isinstance(language_idx, str):
+        language = "zh" if language_idx == "中文" else "en"
+    else:
+        try:
+            language = "zh" if int(language_idx) == 0 else "en"
+        except (ValueError, TypeError):
+             # Fallback if somehow it's neither string '中文'/'English' nor int-able
+            language = "zh"
+
     num_speakers = int(num_speakers) if num_speakers else 1
     num_text_inputs = int(num_text_inputs) if num_text_inputs else 1
 
