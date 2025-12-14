@@ -168,11 +168,14 @@ def render_interface() -> gr.Blocks:
                 # We still need the list for the backend logic
                 with gr.Group():
                      for i in range(MAX_TEXT_INPUTS):
-                        dialogue_text_input = gr.Textbox(
+                        dialogue_text_input = gr.Code(
                             label=f"{i18n('dialogue_text_input_label')} {i+1}",
-                            placeholder=i18n("dialogue_text_input_placeholder"),
+                            value="",
+                            language="javascript",
                             lines=6,
                             max_lines=12,
+                            interactive=True,
+                            show_line_numbers=True,
                             visible=(i < 1),
                         )
                         dialogue_text_inputs_list.append(dialogue_text_input)

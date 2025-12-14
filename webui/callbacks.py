@@ -569,11 +569,9 @@ def change_component_language(lang, *remarks):
             gr.update(label=i18n(f"spk{i+1}_prompt_audio_label") if f"spk{i+1}_prompt_audio_label" in i18n_dict else f"说话人 {i+1} 参考语音"),
             gr.update(
                 label=i18n(f"spk{i+1}_prompt_text_label") if f"spk{i+1}_prompt_text_label" in i18n_dict else f"说话人 {i+1} 参考文本",
-                placeholder=i18n(f"spk{i+1}_prompt_text_placeholder") if f"spk{i+1}_prompt_text_placeholder" in i18n_dict else f"说话人 {i+1} 参考文本",
             ),
             gr.update(
                 label=i18n(f"spk{i+1}_dialect_prompt_text_label") if f"spk{i+1}_dialect_prompt_text_label" in i18n_dict else f"说话人 {i+1} 方言提示文本",
-                placeholder=i18n(f"spk{i+1}_dialect_prompt_text_placeholder") if f"spk{i+1}_dialect_prompt_text_placeholder" in i18n_dict else "带前缀方言提示词思维链文本",
             ),
         ])
     
@@ -582,7 +580,6 @@ def change_component_language(lang, *remarks):
     for i in range(MAX_TEXT_INPUTS):
         updates.append(gr.update(
             label=f"{i18n('dialogue_text_input_label')} {i+1}",
-            placeholder=i18n("dialogue_text_input_placeholder"),
         ))
     
     for i in range(MAX_TEXT_INPUTS):
