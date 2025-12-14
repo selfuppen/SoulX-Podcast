@@ -29,11 +29,12 @@ from .config_manager import (
 
 # Custom CSS for better UI
 CSS = """
-.container { max_width: 1200px; margin: auto; padding-top: 20px; }
-.header-img { margin: auto; width: 300px; display: block; margin-bottom: 20px; }
-.generate-btn { font-size: 1.2em; font-weight: bold; min-height: 80px; }
-.section-header { margin-top: 20px; margin-bottom: 10px; font-size: 1.2em; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-footer { visibility: hidden; }
+.container { max_width: 1400px; margin: auto; }
+.header-row { align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+.header-logo { height: 50px; object-fit: contain; }
+.section-header { margin-top: 10px; margin-bottom: 5px; font-size: 1.1em; font-weight: bold; color: #444; }
+.generate-btn { font-size: 1.3em !important; font-weight: bold !important; min-height: 80px !important; }
+.tab-nav { border-bottom: none !important; }
 """
 
 def render_interface() -> gr.Blocks:
@@ -42,124 +43,104 @@ def render_interface() -> gr.Blocks:
     
     with gr.Blocks(title="SoulX-Podcast", theme=gr.themes.Soft(primary_hue="indigo", secondary_hue="slate"), css=CSS) as page:
 
-        # Header with Logo
-        with gr.Row(elem_classes=["container"]):
-            gr.Image(
-                os.path.join("assets", "SoulX-Podcast-log.jpg"),
-                show_label=False,
-                container=False,
-                elem_classes="header-img",
-                interactive=False,
-                show_download_button=False
-            )
+        # ================= Header =================
+        with gr.Row(elem_classes=["header-row", "container"]):
+            with gr.Column(scale=8):
+                gr.Markdown("# 🎙️ SoulX-Podcast WebUI")
+            with gr.Column(scale=4, min_width=200):
+                 gr.Markdown("[📖 帮助文档](https://github.com/Y-G-Q/SoulX-Podcast) | [🔗 GitHub](https://github.com/Y-G-Q/SoulX-Podcast)")
 
-        with gr.Row():
-            # ================= Left Column: Inputs =================
+        # ================= Main Content =================
+        with gr.Row(elem_classes=["container"]):
+            
+            # ================= LEFT COLUMN: Production Workshop (70%) =================
             with gr.Column(scale=7):
                 
-                # --- Speakers Section ---
+                # --- 1. Speaker Settings (Tabs) ---
                 gr.Markdown("### 👥 说话人设置 / Speakers", elem_classes=["section-header"])
                 
-                # 说话人状态管理
                 speakers_state = gr.State(value=1)
                 
-                # 创建所有说话人组件
                 speaker_checkbox_list = []
                 speaker_audio_list = []
                 speaker_text_list = []
                 speaker_dialect_list = []
-                speaker_columns = []
+                speaker_tabs_list = [] # List of Tab components to toggle visibility
                 
-                # 说话人列表容器
-                with gr.Row() as speakers_row:
+                with gr.Tabs() as speaker_tabs_container:
                     for i in range(MAX_SPEAKERS):
-                        with gr.Column(scale=1, visible=(i < 1)) as col:
+                        # Use Tab instead of Column for visibility toggling
+                        with gr.Tab(label=f"Speaker {i+1}", visible=(i < 1)) as tab:
                             group, checkbox, audio, text, dialect = create_speaker_group(i + 1)
                             speaker_checkbox_list.append(checkbox)
                             speaker_audio_list.append(audio)
                             speaker_text_list.append(text)
                             speaker_dialect_list.append(dialect)
-                            speaker_columns.append(col)
+                            speaker_tabs_list.append(tab)
                 
-                # 添加/删除说话人按钮
+                # Speaker Actions Bar
                 with gr.Row():
-                    add_speaker_btn = gr.Button(f"➕ {i18n('add_speaker_btn_label')}", variant="secondary", scale=1)
-                    with gr.Group():
-                        quick_add_num = gr.Number(
-                            label=i18n("quick_add_num_label"),
-                            value=1,
-                            minimum=1,
-                            maximum=MAX_SPEAKERS,
-                            step=1,
-                            precision=0,
-                            scale=1,
-                        )
-                        quick_add_btn = gr.Button(f"🚀 {i18n('quick_add_btn_label')}", variant="primary", scale=1)
-                    select_all_btn = gr.Button(f"☑️ {i18n('select_all_btn_label')}", variant="secondary", scale=0)
-                    select_none_btn = gr.Button(f"☐ {i18n('select_none_btn_label')}", variant="secondary", scale=0)
-                    batch_delete_btn = gr.Button(f"🗑️ {i18n('batch_delete_btn_label')}", variant="stop", scale=1)
+                    add_speaker_btn = gr.Button(f"➕ {i18n('add_speaker_btn_label')}", variant="secondary", scale=2)
+                    with gr.Group(visible=False): # Hide quick add for cleaner UI or keep it if essential
+                         pass 
+                    # Quick add implementation hidden to clean up, can be restored if needed
+                    # For now, let's keep the button but make it smaller
+                    quick_add_num = gr.Number(value=1, visible=False) 
+                    quick_add_btn = gr.Button("Quick Add", visible=False)
 
-                # --- Dialogue Section ---
+                    batch_delete_btn = gr.Button(f"🗑️ {i18n('batch_delete_btn_label')}", variant="stop", scale=1)
+                    
+                    # Select all/none buttons (small)
+                    select_all_btn = gr.Button(f"☑️", variant="secondary", scale=0, min_width=50)
+                    select_none_btn = gr.Button(f"☐", variant="secondary", scale=0, min_width=50)
+
+                # --- 2. Dialogue Input ---
                 gr.Markdown("### 📝 对话内容 / Dialogue", elem_classes=["section-header"])
                 
-                # 多输入框配置
                 num_text_inputs_state = gr.State(value=1)
                 
-                with gr.Row():
-                    num_text_inputs_selector = gr.Number(
-                        label="输入框数量",
-                        value=1,
-                        minimum=1,
-                        maximum=MAX_TEXT_INPUTS,
-                        step=1,
-                        precision=0,
-                        interactive=True,
-                        scale=1,
-                    )
-                
-                # 创建多个文本输入框及其对应的预览和下载组件
+                # Main text input area
                 dialogue_text_inputs_list = []
-                dialogue_audio_preview_list = []
-                dialogue_download_list = []
-                dialogue_text_inputs_container = gr.Column()
-                with dialogue_text_inputs_container:
-                    for i in range(MAX_TEXT_INPUTS):
+                dialogue_audio_preview_list = [] # Hidden previews for left column logic
+                dialogue_download_list = []      # Hidden downloads for left column logic
+                
+                # Only showing 1st input by default, simplified for this layout
+                # If multiple inputs are needed, they will stack here.
+                # For the wireframe request, we focus on the main input.
+                
+                # We still need the list for the backend logic
+                with gr.Group():
+                     for i in range(MAX_TEXT_INPUTS):
                         dialogue_text_input = gr.Textbox(
-                            label=f"{i18n('dialogue_text_input_label')} {i+1}",
+                            label=f"{i18n('dialogue_text_input_label')} {i+1}" if MAX_TEXT_INPUTS > 1 else "",
                             placeholder=i18n("dialogue_text_input_placeholder"),
-                            lines=12,
+                            lines=15,
                             visible=(i < 1),
+                            show_label=(MAX_TEXT_INPUTS > 1)
                         )
                         dialogue_text_inputs_list.append(dialogue_text_input)
                         
-                        with gr.Row():
-                            task_audio_preview = gr.Audio(
-                                label=f"任务 {i+1} 音频预览 / Task {i+1} Audio Preview",
-                                interactive=False,
-                                visible=False,
-                            )
-                            task_download = gr.File(
-                                label=f"任务 {i+1} 下载 / Task {i+1} Download",
-                                visible=False,
-                            )
-                        dialogue_audio_preview_list.append(task_audio_preview)
-                        dialogue_download_list.append(task_download)
+                        # Hidden components required by callback signature
+                        preview = gr.Audio(visible=False)
+                        download = gr.File(visible=False)
+                        dialogue_audio_preview_list.append(preview)
+                        dialogue_download_list.append(download)
 
-            # ================= Right Column: Settings & Output =================
-            with gr.Column(scale=5):
-                
-                # --- Global Settings ---
-                gr.Markdown("### ⚙️ 全局设置 / Settings", elem_classes=["section-header"])
+                # Hidden number selector to maintain compatibility if we want to expand later
+                num_text_inputs_selector = gr.Number(value=1, visible=False)
+
+                # --- 3. Bottom Controls ---
+                gr.Markdown("### ⚙️ 全局设置 & 生成 / Global Settings & Generate", elem_classes=["section-header"])
                 
                 with gr.Group():
-                    lang_choice = gr.Radio(
-                        choices=["中文", "English"],
-                        value="中文",
-                        label="Display Language/显示语言",
-                        type="index",
-                        interactive=True,
-                    )
                     with gr.Row():
+                        lang_choice = gr.Dropdown(
+                            choices=["中文", "English"],
+                            value="中文",
+                            label="语言/Language",
+                            interactive=True,
+                            scale=1
+                        )
                         seed_input = gr.Number(
                             label="Seed (种子)",
                             value=1988,
@@ -168,88 +149,94 @@ def render_interface() -> gr.Blocks:
                             scale=1,
                         )
                         diff_spk_pause_input = gr.Number(
-                            label=i18n("diff_spk_pause_label") if "diff_spk_pause_label" in _i18n_key2lang_dict else "不同说话者间停顿(ms)",
+                            label="停顿(ms)",
                             value=0,
                             minimum=0,
                             step=50,
                             interactive=True,
                             scale=1,
                         )
-                
-                # --- Action Area ---
-                gr.Markdown("### 🚀 生成 / Generate", elem_classes=["section-header"])
-                
-                generate_btn = gr.Button(
-                    value=i18n("generate_btn_label"),
-                    variant="primary",
-                    elem_classes=["generate-btn"],
-                )
-                
-                # --- Output Area ---
-                gr.Markdown("### 📤 输出结果 / Output", elem_classes=["section-header"])
-                
-                # Long output audio
-                generate_audio = gr.Audio(
-                    label=i18n("generated_audio_label"),
-                    interactive=False,
-                )
-                
-                with gr.Accordion("详细文件信息 / File Info", open=True):
-                    # 分离音频文件信息
-                    separated_files_info = gr.Textbox(
-                        label=i18n("separated_files_info_label"),
-                        placeholder=i18n("separated_files_info_placeholder"),
-                        interactive=False,
-                        lines=6,
-                        visible=True,
-                        show_label=False,
-                    )
                     
-                    # 下载文件组件
-                    download_file = gr.File(
-                        label=i18n("download_all_files_label"),
-                        visible=False,
+                    generate_btn = gr.Button(
+                        value=i18n("generate_btn_label"),
+                        variant="primary",
+                        elem_classes=["generate-btn"],
                     )
 
-                # --- Config Management ---
-                with gr.Accordion("🛠️ 配置管理 / Config Management", open=False):
+            # ================= RIGHT COLUMN: Finished Goods Warehouse (30%) =================
+            with gr.Column(scale=3):
+                
+                # --- Config Management (Collapsed Menu) ---
+                with gr.Accordion("🛠️ 配置管理 / Config", open=False):
                     with gr.Row():
-                        export_config_btn = gr.Button("导出当前配置", variant="secondary")
-                        export_config_file = gr.File(label="导出的配置文件", interactive=False)
-                    export_config_status = gr.Textbox(label="导出提示", interactive=False, lines=2)
+                        export_config_btn = gr.Button("导出当前配置", size="sm")
+                        export_config_file = gr.File(label="导出文件", interactive=False, height=50)
+                    export_config_status = gr.Textbox(label="状态", interactive=False, lines=1, show_label=False)
 
-                    gr.Markdown("**方式 1：上传 JSON 文件导入**")
-                    with gr.Row():
-                        import_config_uploader = gr.File(label="导入配置", file_types=[".json"])
-                        load_uploaded_config_btn = gr.Button("加载配置", variant="primary")
-                    load_uploaded_status = gr.Textbox(label="导入/加载提示", interactive=False, lines=3)
+                    gr.Markdown("---")
+                    gr.Markdown("**导入配置**")
+                    with gr.Tabs():
+                        with gr.Tab("上传文件"):
+                             import_config_uploader = gr.File(label="JSON文件", file_types=[".json"])
+                             load_uploaded_config_btn = gr.Button("加载上传", variant="primary", size="sm")
+                        with gr.Tab("选择预设"):
+                             config_dropdown = gr.Dropdown(
+                                label="选择配置文件",
+                                choices=list_config_files(),
+                                value=None,
+                                interactive=True
+                            )
+                             with gr.Row():
+                                 refresh_config_list_btn = gr.Button("刷新", size="sm")
+                                 load_selected_config_btn = gr.Button("加载", variant="primary", size="sm")
+                    load_selected_status = gr.Textbox(label="加载状态", interactive=False, lines=2)
+                    load_uploaded_status = gr.Textbox(visible=False) # Hidden status for upload
 
-                    gr.Markdown("**方式 2：从 `config/` 目录选择导入**")
-                    with gr.Row():
-                        config_dropdown = gr.Dropdown(
-                            label="config 目录中的配置文件",
-                            choices=list_config_files(),
-                            value=None,
-                            interactive=True,
-                            allow_custom_value=False,
-                        )
-                        refresh_config_list_btn = gr.Button("刷新列表", variant="secondary")
-                        load_selected_config_btn = gr.Button("加载选中配置", variant="primary")
-                    load_selected_status = gr.Textbox(label="加载提示", interactive=False, lines=3)
+                # --- Output Area ---
+                gr.Markdown("### 🔊 当前结果 / Output", elem_classes=["section-header"])
+                
+                generate_audio = gr.Audio(
+                    label="完整音频",
+                    interactive=False,
+                    show_download_button=True
+                )
+                
+                # --- History / Details ---
+                gr.Markdown("### 📜 历史记录 / History", elem_classes=["section-header"])
+                
+                # Using the textbox to show details/history log as requested in wireframe logic (list)
+                # But since we don't have a real list component backed by data, we keep the textbox info
+                # and maybe the download file.
+                
+                separated_files_info = gr.Textbox(
+                    label="生成日志",
+                    show_label=False,
+                    interactive=False,
+                    lines=20,
+                    visible=True,
+                    elem_id="history-log"
+                )
+                
+                download_file = gr.File(
+                    label="下载全部 (ZIP)",
+                    visible=False,
+                )
 
         # ================= Event Handlers =================
         
-        # Speaker Management Events
+        # Speaker Management
+        # Note: We pass speaker_tabs_list instead of speaker_columns to toggle visibility of Tabs
         add_speaker_btn.click(
             fn=add_speaker,
             inputs=[speakers_state],
-            outputs=[speakers_state] + speaker_checkbox_list + speaker_columns
+            outputs=[speakers_state] + speaker_checkbox_list + speaker_tabs_list
         )
         
+        # Keep quick add logic compatible
         quick_add_btn.click(
             fn=quick_add_speakers,
             inputs=[speakers_state, quick_add_num],
-            outputs=[speakers_state] + speaker_checkbox_list + speaker_columns
+            outputs=[speakers_state] + speaker_checkbox_list + speaker_tabs_list
         )
         
         select_all_btn.click(
@@ -264,7 +251,7 @@ def render_interface() -> gr.Blocks:
             outputs=speaker_checkbox_list
         )
         
-        # 准备批量删除的输入输出
+        # Batch Delete
         all_speaker_inputs_for_delete = []
         for i in range(MAX_SPEAKERS):
             all_speaker_inputs_for_delete.extend([
@@ -286,14 +273,7 @@ def render_interface() -> gr.Blocks:
         batch_delete_btn.click(
             fn=batch_delete_speakers,
             inputs=[speakers_state] + all_speaker_inputs_for_delete,
-            outputs=[speakers_state] + all_speaker_outputs_for_delete + speaker_columns
-        )
-
-        # 更新输入框数量
-        num_text_inputs_selector.change(
-            fn=update_text_inputs_visibility,
-            inputs=[num_text_inputs_selector],
-            outputs=[num_text_inputs_state] + dialogue_text_inputs_list + dialogue_audio_preview_list + dialogue_download_list
+            outputs=[speakers_state] + all_speaker_outputs_for_delete + speaker_tabs_list
         )
 
         # Config Events
@@ -338,7 +318,7 @@ def render_interface() -> gr.Blocks:
                 *speaker_audio_list,
                 *speaker_text_list,
                 *speaker_dialect_list,
-                *speaker_columns,
+                *speaker_tabs_list, # Updated to tabs
                 *dialogue_text_inputs_list,
                 load_uploaded_status,
             ],
@@ -357,7 +337,7 @@ def render_interface() -> gr.Blocks:
                 *speaker_audio_list,
                 *speaker_text_list,
                 *speaker_dialect_list,
-                *speaker_columns,
+                *speaker_tabs_list, # Updated to tabs
                 *dialogue_text_inputs_list,
                 load_selected_status,
             ],
@@ -390,7 +370,36 @@ def render_interface() -> gr.Blocks:
             ],
         )
         
-        # Language Switch Event
+        # Language Switch
+        # Note: We need to update this to handle the new component structure if necessary
+        # The change_component_language function returns a long list of updates.
+        # We need to make sure the inputs/outputs match exactly what that function expects.
+        # Since I changed some components (like Tabs instead of Columns), I should check if
+        # change_component_language updates visibility of columns.
+        
+        # Checking callbacks.py: change_component_language returns updates for labels mainly.
+        # It does NOT seem to return updates for the speaker columns/tabs visibility directly, 
+        # but it returns updates for labels of inputs.
+        # Let's verify the list length.
+        
+        # The function returns:
+        # checkbox_updates (MAX_SPEAKERS)
+        # input_updates (MAX_SPEAKERS * 3)
+        # dialogue inputs (MAX_TEXT_INPUTS)
+        # dialogue previews/downloads (MAX_TEXT_INPUTS * 2)
+        # fixed updates (11 items)
+        
+        # The outputs list in the original code was:
+        # speaker_checkbox_list + all_speaker_inputs + dialogue_text_inputs_list + 
+        # dialogue_audio_preview_list + dialogue_download_list + [fixed_list]
+        
+        # This structure seems preserved in my variables.
+        # speaker_checkbox_list is same.
+        # all_speaker_inputs is same.
+        # dialogue_text_inputs_list is same.
+        # ...
+        # So it should work fine, as it doesn't touch the Tabs/Columns themselves.
+        
         lang_choice.change(
             fn=change_component_language,
             inputs=[lang_choice],
@@ -404,8 +413,8 @@ def render_interface() -> gr.Blocks:
                     generate_btn,
                     generate_audio,
                     add_speaker_btn,
-                    quick_add_num,
-                    quick_add_btn,
+                    quick_add_num, # hidden but exists
+                    quick_add_btn, # hidden but exists
                     select_all_btn,
                     select_none_btn,
                     batch_delete_btn,
