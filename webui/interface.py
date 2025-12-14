@@ -21,6 +21,10 @@ from .callbacks import (
     change_component_language,
     update_single_speaker_label,
     update_speaker_accordion_label,
+    update_speaker_selection_choices,
+    selection_group_to_checkboxes,
+    select_all_selection_group,
+    select_none_selection_group,
 )
 from .config_manager import (
     export_current_config,
@@ -71,31 +75,7 @@ def render_interface() -> gr.Blocks:
                     speaker_dialect_list = []
                     speaker_tabs_list = [] # List of Tab components to toggle visibility
                     
-                    with gr.Tabs() as speaker_tabs_container:
-                        for i in range(MAX_SPEAKERS):
-                            tab_label = get_speaker_display_label(i + 1)
-                            with gr.Tab(label=tab_label, visible=(i < 1)) as tab:
-                                group, checkbox, remark, audio, text, dialect = create_speaker_group(i + 1)
-                                speaker_checkbox_list.append(checkbox)
-                                speaker_remark_list.append(remark)
-                                speaker_audio_list.append(audio)
-                                speaker_text_list.append(text)
-                                speaker_dialect_list.append(dialect)
-                                speaker_tabs_list.append(tab)
-                                
-                                # 备注变化时同步更新 Tab 与复选框标签，以及 Accordion 标题
-                                idx_state = gr.State(i + 1)
-                                remark.change(
-                                    fn=update_single_speaker_label,
-                                    inputs=[remark, idx_state],
-                                    outputs=[checkbox, tab],
-                                ).then(
-                                    fn=update_speaker_accordion_label,
-                                    inputs=[speakers_state] + speaker_remark_list,
-                                    outputs=[speaker_accordion],
-                                )
-                    
-                    # Speaker Actions Bar
+                    # 操作区置顶
                     with gr.Row():
                         add_speaker_btn = gr.Button(f"➕ {i18n('add_speaker_btn_label')}", variant="secondary", scale=2)
                         with gr.Group():
@@ -118,7 +98,42 @@ def render_interface() -> gr.Blocks:
                         # Select all/none buttons (small)
                         select_all_btn = gr.Button(f"☑️", variant="secondary", scale=0, min_width=50)
                         select_none_btn = gr.Button(f"☐", variant="secondary", scale=0, min_width=50)
-
+                    
+                    speaker_selection_group = gr.CheckboxGroup(
+                        label="快速勾选要删除的说话人",
+                        choices=[get_speaker_display_label(1)],
+                        value=[],
+                        interactive=True,
+                    )
+                    
+                    with gr.Tabs() as speaker_tabs_container:
+                        for i in range(MAX_SPEAKERS):
+                            tab_label = get_speaker_display_label(i + 1)
+                            with gr.Tab(label=tab_label, visible=(i < 1)) as tab:
+                                group, checkbox, remark, audio, text, dialect = create_speaker_group(i + 1)
+                                speaker_checkbox_list.append(checkbox)
+                                speaker_remark_list.append(remark)
+                                speaker_audio_list.append(audio)
+                                speaker_text_list.append(text)
+                                speaker_dialect_list.append(dialect)
+                                speaker_tabs_list.append(tab)
+                                
+                                # 备注变化时同步更新 Tab 与复选框标签，以及 Accordion 标题
+                                idx_state = gr.State(i + 1)
+                                remark.change(
+                                    fn=update_single_speaker_label,
+                                    inputs=[remark, idx_state],
+                                    outputs=[checkbox, tab],
+                                ).then(
+                                    fn=update_speaker_accordion_label,
+                                    inputs=[speakers_state] + speaker_remark_list,
+                                    outputs=[speaker_accordion],
+                                ).then(
+                                    fn=update_speaker_selection_choices,
+                                    inputs=[speakers_state] + speaker_remark_list,
+                                    outputs=[speaker_selection_group],
+                                )
+                    
                 # --- 2. Dialogue Input ---
                 gr.Markdown("### 📝 对话内容 / Dialogue", elem_classes=["section-header"])
                 
@@ -133,6 +148,14 @@ def render_interface() -> gr.Blocks:
                         maximum=MAX_TEXT_INPUTS,
                         step=1,
                         precision=0,
+                        interactive=True,
+                        scale=1,
+                     )
+                     diff_spk_pause_input = gr.Number(
+                        label="不同说话人停顿(ms)",
+                        value=0,
+                        minimum=0,
+                        step=50,
                         interactive=True,
                         scale=1,
                      )
@@ -229,14 +252,6 @@ def render_interface() -> gr.Blocks:
                         interactive=True,
                         scale=1,
                     )
-                    diff_spk_pause_input = gr.Number(
-                        label="停顿(ms)",
-                        value=0,
-                        minimum=0,
-                        step=50,
-                        interactive=True,
-                        scale=1,
-                    )
 
                 # --- Output Area ---
                 gr.Markdown("### 🔊 当前结果 / Output", elem_classes=["section-header"])
@@ -287,6 +302,10 @@ def render_interface() -> gr.Blocks:
             fn=update_speaker_accordion_label,
             inputs=[speakers_state] + speaker_remark_list,
             outputs=[speaker_accordion],
+        ).then(
+            fn=update_speaker_selection_choices,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_selection_group],
         )
         
         # Keep quick add logic compatible
@@ -298,18 +317,29 @@ def render_interface() -> gr.Blocks:
             fn=update_speaker_accordion_label,
             inputs=[speakers_state] + speaker_remark_list,
             outputs=[speaker_accordion],
+        ).then(
+            fn=update_speaker_selection_choices,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_selection_group],
         )
         
         select_all_btn.click(
             fn=select_all_checkboxes,
             inputs=[speakers_state],
             outputs=speaker_checkbox_list
+        ).then(
+            fn=select_all_selection_group,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_selection_group],
         )
         
         select_none_btn.click(
             fn=select_none_checkboxes,
             inputs=[speakers_state],
             outputs=speaker_checkbox_list
+        ).then(
+            fn=select_none_selection_group,
+            outputs=[speaker_selection_group],
         )
         
         # Batch Delete
@@ -341,6 +371,17 @@ def render_interface() -> gr.Blocks:
             fn=update_speaker_accordion_label,
             inputs=[speakers_state] + speaker_remark_list,
             outputs=[speaker_accordion],
+        ).then(
+            fn=update_speaker_selection_choices,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_selection_group],
+        )
+
+        # 快捷勾选同步
+        speaker_selection_group.change(
+            fn=selection_group_to_checkboxes,
+            inputs=[speaker_selection_group, speakers_state] + speaker_remark_list,
+            outputs=speaker_checkbox_list,
         )
 
         # Config Events
@@ -396,6 +437,10 @@ def render_interface() -> gr.Blocks:
             fn=update_speaker_accordion_label,
             inputs=[speakers_state] + speaker_remark_list,
             outputs=[speaker_accordion],
+        ).then(
+            fn=update_speaker_selection_choices,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_selection_group],
         )
 
         load_selected_config_btn.click(
@@ -420,6 +465,10 @@ def render_interface() -> gr.Blocks:
             fn=update_speaker_accordion_label,
             inputs=[speakers_state] + speaker_remark_list,
             outputs=[speaker_accordion],
+        ).then(
+            fn=update_speaker_selection_choices,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_selection_group],
         )
 
         # Generate Events

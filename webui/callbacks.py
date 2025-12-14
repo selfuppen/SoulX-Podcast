@@ -211,6 +211,46 @@ def update_speaker_accordion_label(num_speakers: int, *remarks):
     return gr.update(label=title)
 
 
+def _build_speaker_labels(num_speakers: int, remarks=None):
+    """生成当前可见说话人的标签列表"""
+    remark_list = list(remarks) if remarks else []
+    labels = []
+    for i in range(max(1, min(int(num_speakers) if num_speakers else 1, MAX_SPEAKERS))):
+        remark_val = remark_list[i] if i < len(remark_list) else ""
+        labels.append(get_speaker_display_label(i + 1, remark_val))
+    return labels
+
+
+def update_speaker_selection_choices(num_speakers: int, *remarks):
+    """更新快捷勾选组件的选项"""
+    labels = _build_speaker_labels(num_speakers, remarks)
+    return gr.update(choices=labels, value=[])
+
+
+def selection_group_to_checkboxes(selected_labels, num_speakers: int, *remarks):
+    """将快捷勾选结果同步到各说话人复选框"""
+    labels = _build_speaker_labels(num_speakers, remarks)
+    selected_set = set(selected_labels or [])
+    updates = []
+    for i in range(MAX_SPEAKERS):
+        if i < len(labels):
+            updates.append(gr.update(value=(labels[i] in selected_set), visible=True))
+        else:
+            updates.append(gr.update(value=False, visible=False))
+    return updates
+
+
+def select_all_selection_group(num_speakers: int, *remarks):
+    """同步全选到快捷勾选组件"""
+    labels = _build_speaker_labels(num_speakers, remarks)
+    return gr.update(value=labels)
+
+
+def select_none_selection_group():
+    """同步全不选到快捷勾选组件"""
+    return gr.update(value=[])
+
+
 # =============================================================================
 # Text Input Management
 # =============================================================================
