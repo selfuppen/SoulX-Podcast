@@ -46,6 +46,18 @@ def get_args():
         default=1988,
         help='random seed for generation'
     )
+    parser.add_argument(
+        '--gpu_memory_utilization',
+        type=float,
+        default=0.5,
+        help='GPU memory utilization ratio for VLLM (default: 0.5, lower if OOM)'
+    )
+    parser.add_argument(
+        '--max_model_len',
+        type=int,
+        default=8192,
+        help='Maximum model length for VLLM (default: 8192)'
+    )
     args = parser.parse_args()
     return args
 
@@ -70,7 +82,9 @@ if __name__ == "__main__":
         model=args.model_path,
         enforce_eager=True,
         llm_engine=llm_engine,
-        hf_config=hf_config
+        hf_config=hf_config,
+        gpu_memory_utilization=args.gpu_memory_utilization,
+        max_model_len=args.max_model_len
     )
 
     torch.manual_seed(args.seed)
