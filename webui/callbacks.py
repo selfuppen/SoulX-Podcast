@@ -184,6 +184,33 @@ def update_single_speaker_label(remark: str, idx: int):
     return gr.update(label=label), gr.update(label=label)
 
 
+def update_speaker_accordion_label(num_speakers: int, *remarks):
+    """
+    更新说话人设置 Accordion 的标题，显示所有说话人的标签信息
+    """
+    remark_list = list(remarks) if remarks else []
+    num = int(num_speakers) if num_speakers else 1
+    num = max(1, min(num, MAX_SPEAKERS))
+    
+    # 构建说话人标签列表
+    speaker_labels = []
+    for i in range(num):
+        remark_val = remark_list[i] if i < len(remark_list) else ""
+        label = get_speaker_display_label(i + 1, remark_val)
+        speaker_labels.append(label)
+    
+    # 生成标题
+    if speaker_labels:
+        labels_str = ", ".join(speaker_labels)
+        title = f"👥 说话人设置 / Speakers ({labels_str})"
+    else:
+        title = "👥 说话人设置 / Speakers"
+    
+    return gr.update(label=title)
+    
+    return gr.update(label=title)
+
+
 # =============================================================================
 # Text Input Management
 # =============================================================================

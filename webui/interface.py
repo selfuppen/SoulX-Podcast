@@ -20,6 +20,7 @@ from .callbacks import (
     collect_and_synthesize_queue,
     change_component_language,
     update_single_speaker_label,
+    update_speaker_accordion_label,
 )
 from .config_manager import (
     export_current_config,
@@ -36,9 +37,6 @@ CSS = """
 .section-header { margin-top: 10px; margin-bottom: 5px; font-size: 1.1em; font-weight: bold; color: #444; }
 .generate-btn { font-size: 1.3em !important; font-weight: bold !important; min-height: 80px !important; }
 .tab-nav { border-bottom: none !important; }
-/* Hide tabs navigation when accordion is closed */
-details:not([open]) .tab-nav { display: none !important; }
-details:not([open]) .tab-nav-container { display: none !important; }
 """
 
 def render_interface() -> gr.Blocks:
@@ -61,7 +59,9 @@ def render_interface() -> gr.Blocks:
             with gr.Column(scale=7):
                 
                 # --- 1. Speaker Settings (Tabs) ---
-                with gr.Accordion("👥 说话人设置 / Speakers", open=False):
+                # Initialize with default speaker label
+                initial_accordion_label = "👥 说话人设置 / Speakers (选择说话人 1)"
+                with gr.Accordion(initial_accordion_label, open=False) as speaker_accordion:
                     speakers_state = gr.State(value=1)
                     
                     speaker_checkbox_list = []
@@ -83,12 +83,16 @@ def render_interface() -> gr.Blocks:
                                 speaker_dialect_list.append(dialect)
                                 speaker_tabs_list.append(tab)
                                 
-                                # 备注变化时同步更新 Tab 与复选框标签
+                                # 备注变化时同步更新 Tab 与复选框标签，以及 Accordion 标题
                                 idx_state = gr.State(i + 1)
                                 remark.change(
                                     fn=update_single_speaker_label,
                                     inputs=[remark, idx_state],
                                     outputs=[checkbox, tab],
+                                ).then(
+                                    fn=update_speaker_accordion_label,
+                                    inputs=[speakers_state] + speaker_remark_list,
+                                    outputs=[speaker_accordion],
                                 )
                     
                     # Speaker Actions Bar
@@ -279,6 +283,10 @@ def render_interface() -> gr.Blocks:
             fn=add_speaker,
             inputs=[speakers_state] + speaker_remark_list,
             outputs=[speakers_state] + speaker_checkbox_list + speaker_tabs_list
+        ).then(
+            fn=update_speaker_accordion_label,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_accordion],
         )
         
         # Keep quick add logic compatible
@@ -286,6 +294,10 @@ def render_interface() -> gr.Blocks:
             fn=quick_add_speakers,
             inputs=[speakers_state, quick_add_num] + speaker_remark_list,
             outputs=[speakers_state] + speaker_checkbox_list + speaker_tabs_list
+        ).then(
+            fn=update_speaker_accordion_label,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_accordion],
         )
         
         select_all_btn.click(
@@ -325,6 +337,10 @@ def render_interface() -> gr.Blocks:
             fn=batch_delete_speakers,
             inputs=[speakers_state] + all_speaker_inputs_for_delete,
             outputs=[speakers_state] + all_speaker_outputs_for_delete + speaker_tabs_list
+        ).then(
+            fn=update_speaker_accordion_label,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_accordion],
         )
 
         # Config Events
@@ -376,6 +392,10 @@ def render_interface() -> gr.Blocks:
                 *dialogue_text_inputs_list,
                 load_uploaded_status,
             ],
+        ).then(
+            fn=update_speaker_accordion_label,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_accordion],
         )
 
         load_selected_config_btn.click(
@@ -396,6 +416,10 @@ def render_interface() -> gr.Blocks:
                 *dialogue_text_inputs_list,
                 load_selected_status,
             ],
+        ).then(
+            fn=update_speaker_accordion_label,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[speaker_accordion],
         )
 
         # Generate Events
