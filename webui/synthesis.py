@@ -75,7 +75,7 @@ def process_single(
             continue
         spk_num = int(match.group(2))
         text = match.group(3).strip()
-        print(f"process_single: target_text: \nstart{target_text}\nend, spk_num: {spk_num},\n text: \nstart{text}\nend")
+        # print(f"process_single: target_text: \nstart{target_text}\nend, spk_num: {spk_num},\n text: \nstart{text}\nend")
         spk = spk_num - 1  # S1->0, S2->1, etc.
         spks.append(spk)
         texts.append(text)

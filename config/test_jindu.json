@@ -1,9 +1,9 @@
 {
   "version": "1.0",
-  "export_time": "2025-12-14 15:30:35",
+  "export_time": "2025-12-14 17:15:44",
   "language": "zh",
   "num_speakers": 7,
-  "num_text_inputs": 1,
+  "num_text_inputs": 2,
   "seed": 1988,
   "diff_spk_pause_ms": 0,
   "speakers": [
@@ -21,7 +21,7 @@
     },
     {
       "prompt_audio": "/tmp/gradio/bf2dfc2b4940b4a9a565e980f6313e424a9f189cbda7905a26b1be0e1bd3858f/敖丙1.mp3",
-      "prompt_text": "",
+      "prompt_text": "五年多了，再次登台肯定还是有点儿，你不紧张吗？",
       "dialect_prompt_text": "",
       "remark": "敖丙"
     },
@@ -51,6 +51,7 @@
     }
   ],
   "text_inputs": [
-    ""
+    "[S1] 一 <|pause:60|> 听力测试（共四节，满分60分）<|pause:200|>",
+    "[S2] 一 <|pause:60|> 听力测试（共四节，满分60分）<|pause:200|>"
   ]
 }

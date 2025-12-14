@@ -7,7 +7,7 @@ import os
 import gradio as gr
 
 from .constants import MAX_SPEAKERS, MAX_TEXT_INPUTS
-from .i18n import i18n, get_i18n_dict, get_speaker_display_label
+from .i18n import i18n, get_i18n_dict, get_speaker_display_label, get_language
 from .file_manager import list_config_files
 from .components import create_speaker_group
 from .callbacks import (
@@ -162,8 +162,8 @@ def render_interface() -> gr.Blocks:
 
                 # Main text input area
                 dialogue_text_inputs_list = []
-                dialogue_audio_preview_list = [] # Hidden previews for left column logic
-                dialogue_download_list = []      # Hidden downloads for left column logic
+                dialogue_audio_preview_list = [] # Audio previews for each task
+                dialogue_download_list = []      # Download files for each task
                 
                 # We still need the list for the backend logic
                 with gr.Group():
@@ -180,9 +180,19 @@ def render_interface() -> gr.Blocks:
                         )
                         dialogue_text_inputs_list.append(dialogue_text_input)
                         
-                        # Hidden components required by callback signature
-                        preview = gr.Audio(visible=False)
-                        download = gr.File(visible=False)
+                        # Audio preview component - directly below the text input
+                        # The preview will show audio when it's generated, no progress info
+                        preview = gr.Audio(
+                            label=f"任务 {i+1} 音频预览" if get_language() == "zh" else f"Task {i+1} Audio Preview",
+                            visible=(i < 1),  # Same visibility as text input
+                            interactive=False,
+                            show_download_button=True,
+                            value=None  # No audio initially
+                        )
+                        download = gr.File(
+                            label=f"任务 {i+1} 下载" if get_language() == "zh" else f"Task {i+1} Download",
+                            visible=False
+                        )
                         dialogue_audio_preview_list.append(preview)
                         dialogue_download_list.append(download)
 

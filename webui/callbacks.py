@@ -268,7 +268,9 @@ def update_text_inputs_visibility(num_inputs):
             visible=is_visible,
             label=f"{i18n('dialogue_text_input_label')} {i+1}"
         ))
-        audio_updates.append(gr.update(visible=False))
+        # 预览组件应该和文本输入框保持相同的可见性
+        # 这样当有音频生成时，预览组件才能正确显示
+        audio_updates.append(gr.update(visible=is_visible))
         download_updates.append(gr.update(visible=False))
     return num, *updates, *audio_updates, *download_updates
 
@@ -338,7 +340,7 @@ def collect_and_synthesize_queue(
     *all_text_and_speaker_args
 ):
     """
-    处理队列中的所有任务
+    处理队列中的所有任务（生成器版本，每完成一个任务就更新预览）
     all_text_and_speaker_args格式: (text1, ..., textN, audio1, text1, dialect1, ...)
     """
     global_lang = get_language()
@@ -358,7 +360,7 @@ def collect_and_synthesize_queue(
     if not valid_texts:
         empty_audio_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
         empty_download_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
-        return (
+        yield (
             None,
             "所有输入框均为空，请至少填写一个文本输入",
             gr.update(visible=False),
@@ -367,19 +369,29 @@ def collect_and_synthesize_queue(
             *empty_audio_updates,
             *empty_download_updates,
         )
+        return
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     base_output_dir = os.path.join(os.getcwd(), "outputs", "separated_speakers", timestamp)
     os.makedirs(base_output_dir, exist_ok=True)
     
-    progress_bar = gr.Progress(track_tqdm=True)
+    # 只显示总体进度，不显示每个任务的进度
+    # 使用 track_tqdm=False 避免在每个文本框下显示进度条
+    progress_bar = gr.Progress(track_tqdm=False)
     all_info_messages = []
     task_audio_results = {}
     all_complete_audio_files = []
     all_generated_files = []
     
+    # 初始化所有预览为不可见
+    audio_preview_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
+    download_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
+    
     for task_idx, (text_idx, target_text) in enumerate(zip(valid_indices, valid_texts)):
-        progress_bar((task_idx, len(valid_texts)), desc=f"处理任务 {task_idx + 1}/{len(valid_texts)}")
+        # 不显示每个任务的进度，避免在每个文本框下显示进度条
+        # 只在开始时显示一次总体进度
+        if task_idx == 0 and len(valid_texts) > 1:
+            progress_bar(0, desc=f"开始处理 {len(valid_texts)} 个任务")
         
         try:
             task_number = task_idx + 1
@@ -397,6 +409,8 @@ def collect_and_synthesize_queue(
             
             task_audio_results[text_idx] = audio_result
             all_generated_files.extend(saved_files)
+            
+            print(f"[INFO] 任务 {task_idx + 1} (输入框 {text_idx + 1}) 完成，音频已生成")
             
             complete_files = [f for f in saved_files if "complete_dialogue" in os.path.basename(f)]
             if complete_files:
@@ -450,6 +464,107 @@ def collect_and_synthesize_queue(
             
             all_info_messages.append(info_message)
             
+            # 每完成一个任务，立即更新该任务的预览
+            current_info_message = f"📂 所有任务文件保存在统一的时间戳文件夹中:\n"
+            current_info_message += f"   {os.path.abspath(base_output_dir)}\n"
+            current_info_message += f"   每个任务的文件保存在对应的编号子文件夹中 (001/, 002/, 003/, ...)\n"
+            current_info_message += f"   分段语音保存在各任务子文件夹的 separated/ 子文件夹中\n"
+            current_info_message += "\n"
+            current_info_message += "═══════════════════════════════════\n\n"
+            current_info_message += "\n\n".join(all_info_messages)
+            current_info_message += f"\n\n⏳ 进行中: 已完成 {task_idx + 1}/{len(valid_texts)} 个任务"
+            
+            # 更新当前任务的预览
+            # 预览组件应该和文本输入框保持相同的可见性
+            # 这样当有音频生成时，预览组件才能正确显示
+            current_audio_preview_updates = []
+            current_download_updates = []
+            for i in range(MAX_TEXT_INPUTS):
+                # 检查这个输入框是否在有效输入框中（即文本输入框是否可见）
+                is_text_input_visible = i in valid_indices or i < num_text
+                
+                if i in task_audio_results:
+                    # 有音频结果，显示预览
+                    if global_lang == "zh":
+                        audio_label = f"任务 {i+1} 音频预览"
+                    else:
+                        audio_label = f"Task {i+1} Audio Preview"
+                    
+                    print(f"[INFO] 更新预览组件 {i+1}: 显示音频预览")
+                    
+                    current_audio_preview_updates.append(gr.update(
+                        visible=True,
+                        value=task_audio_results[i],
+                        label=audio_label
+                    ))
+                    current_download_updates.append(gr.update(visible=False))
+                elif is_text_input_visible:
+                    # 文本输入框可见但还没有音频，保持预览组件可见（显示为空）
+                    if global_lang == "zh":
+                        audio_label = f"任务 {i+1} 音频预览"
+                    else:
+                        audio_label = f"Task {i+1} Audio Preview"
+                    
+                    current_audio_preview_updates.append(gr.update(
+                        visible=True,
+                        value=None,
+                        label=audio_label
+                    ))
+                    current_download_updates.append(gr.update(visible=False))
+                else:
+                    # 文本输入框不可见，预览组件也不可见
+                    current_audio_preview_updates.append(gr.update(visible=False))
+                    current_download_updates.append(gr.update(visible=False))
+            
+            # 计算当前合并音频（如果有多个任务已完成）
+            current_preview_audio_value = None
+            if len(all_complete_audio_files) > 0 and task_idx == 0:
+                # 第一个任务完成时，使用第一个任务的音频作为预览
+                current_preview_audio_value = audio_result
+            elif len(all_complete_audio_files) > 1:
+                # 多个任务完成时，尝试合并已完成的音频
+                try:
+                    temp_merged_path = os.path.join(base_output_dir, "temp_merged.wav")
+                    merged_audio_data = None
+                    sample_rate = 24000
+                    
+                    for audio_file in all_complete_audio_files:
+                        if os.path.exists(audio_file):
+                            audio_data, sr = sf.read(audio_file)
+                            if sample_rate != sr:
+                                print(f"[WARNING] 采样率不一致: {audio_file} 为 {sr}Hz，期望 {sample_rate}Hz")
+                            
+                            if len(audio_data.shape) > 1:
+                                audio_data = np.mean(audio_data, axis=1)
+                            
+                            if merged_audio_data is None:
+                                merged_audio_data = audio_data
+                            else:
+                                pause_samples = int(0.5 * sample_rate)
+                                silence = np.zeros(pause_samples)
+                                merged_audio_data = np.concatenate([merged_audio_data, silence, audio_data])
+                    
+                    if merged_audio_data is not None:
+                        sf.write(temp_merged_path, merged_audio_data, sample_rate)
+                        current_preview_audio_value = (sample_rate, merged_audio_data)
+                except Exception as e:
+                    print(f"[WARNING] 临时合并音频失败: {str(e)}")
+                    if task_audio_results:
+                        current_preview_audio_value = list(task_audio_results.values())[-1]
+            elif task_audio_results:
+                current_preview_audio_value = list(task_audio_results.values())[-1]
+            
+            # 每完成一个任务就 yield 一次更新
+            yield (
+                current_preview_audio_value,
+                current_info_message,
+                gr.update(visible=False),  # 下载文件在最后才生成
+                gr.update(interactive=False),  # Left generate button (处理中禁用)
+                gr.update(interactive=False),  # Right generate button (处理中禁用)
+                *current_audio_preview_updates,
+                *current_download_updates,
+            )
+            
         except Exception as e:
             error_msg = f"任务 {task_idx + 1} 处理失败: {str(e)}\n"
             all_info_messages.append(error_msg)
@@ -489,6 +604,10 @@ def collect_and_synthesize_queue(
             import traceback
             traceback.print_exc()
     
+    # 更新总体进度为完成
+    if len(valid_texts) > 1:
+        progress_bar(1.0, desc=f"已完成所有 {len(valid_texts)} 个任务")
+    
     # 创建 all.zip
     all_zip_path = None
     if all_generated_files:
@@ -508,9 +627,9 @@ def collect_and_synthesize_queue(
     final_info_message += "\n\n".join(all_info_messages)
     final_info_message += f"\n\n✅ 已完成所有任务 ({len(valid_texts)}/{len(valid_texts)})"
     
-    # 生成更新
-    audio_preview_updates = []
-    download_updates = []
+    # 生成最终更新
+    final_audio_preview_updates = []
+    final_download_updates = []
     
     preview_audio_value = None
     if merged_audio_path and os.path.exists(merged_audio_path):
@@ -525,21 +644,39 @@ def collect_and_synthesize_queue(
         preview_audio_value = list(task_audio_results.values())[-1]
     
     for i in range(MAX_TEXT_INPUTS):
+        # 检查这个输入框是否在有效输入框中（即文本输入框是否可见）
+        is_text_input_visible = i in valid_indices or i < num_text
+        
         if i in task_audio_results:
+            # 有音频结果，显示预览
             if global_lang == "zh":
                 audio_label = f"任务 {i+1} 音频预览"
             else:
                 audio_label = f"Task {i+1} Audio Preview"
             
-            audio_preview_updates.append(gr.update(
+            final_audio_preview_updates.append(gr.update(
                 visible=True,
                 value=task_audio_results[i],
                 label=audio_label
             ))
-            download_updates.append(gr.update(visible=False))
+            final_download_updates.append(gr.update(visible=False))
+        elif is_text_input_visible:
+            # 文本输入框可见但还没有音频，保持预览组件可见（显示为空）
+            if global_lang == "zh":
+                audio_label = f"任务 {i+1} 音频预览"
+            else:
+                audio_label = f"Task {i+1} Audio Preview"
+            
+            final_audio_preview_updates.append(gr.update(
+                visible=True,
+                value=None,
+                label=audio_label
+            ))
+            final_download_updates.append(gr.update(visible=False))
         else:
-            audio_preview_updates.append(gr.update(visible=False))
-            download_updates.append(gr.update(visible=False))
+            # 文本输入框不可见，预览组件也不可见
+            final_audio_preview_updates.append(gr.update(visible=False))
+            final_download_updates.append(gr.update(visible=False))
     
     download_file_update = None
     if all_zip_path and os.path.exists(all_zip_path):
@@ -548,14 +685,15 @@ def collect_and_synthesize_queue(
     else:
         download_file_update = gr.update(visible=False, value=None)
     
-    return (
+    # 最后一次 yield，返回最终结果
+    yield (
         preview_audio_value,
         final_info_message,
         download_file_update,
         gr.update(interactive=True),  # Left generate button
         gr.update(interactive=True),  # Right generate button
-        *audio_preview_updates,
-        *download_updates,
+        *final_audio_preview_updates,
+        *final_download_updates,
     )
 
 
