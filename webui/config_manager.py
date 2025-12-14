@@ -89,11 +89,13 @@ def export_current_config(
     diff_spk_pause_ms,
     num_speakers,
     num_text_inputs,
+    config_name,
     *values,
 ) -> Tuple[str, str]:
     """
     Export current configuration to a JSON file.
     values: text_inputs(MAX_TEXT_INPUTS) + speaker_inputs(MAX_SPEAKERS*3)
+    config_name: optional custom name for the config file
     Returns: (file_path, status_message)
     """
     ensure_config_dir()
@@ -110,12 +112,28 @@ def export_current_config(
         speaker_values=speaker_values,
     )
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    fname = f"soulx_podcast_config_{ts}.json"
+    # Use custom name if provided, otherwise use default
+    config_name_clean = (config_name or "").strip()
+    if config_name_clean:
+        # Remove .json extension if user added it
+        if config_name_clean.lower().endswith('.json'):
+            config_name_clean = config_name_clean[:-5]
+        # Sanitize filename
+        import re
+        config_name_clean = re.sub(r'[^\w\-_\.]', '_', config_name_clean)
+        fname = f"{config_name_clean}.json"
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        fname = f"soulx_podcast_config_{ts}.json"
+    
     out_path = os.path.join(CONFIG_DIR, fname)
     # 极小概率同秒冲突，追加随机后缀
     if os.path.exists(out_path):
-        out_path = os.path.join(CONFIG_DIR, f"soulx_podcast_config_{ts}_{uuid.uuid4().hex[:8]}.json")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if config_name_clean:
+            out_path = os.path.join(CONFIG_DIR, f"{config_name_clean}_{ts}_{uuid.uuid4().hex[:8]}.json")
+        else:
+            out_path = os.path.join(CONFIG_DIR, f"soulx_podcast_config_{ts}_{uuid.uuid4().hex[:8]}.json")
     write_json_file(out_path, cfg)
     return out_path, f'✅ 已导出配置到: {out_path}\n（如果要在下拉菜单里看到新文件，请点击"刷新列表"）'
 

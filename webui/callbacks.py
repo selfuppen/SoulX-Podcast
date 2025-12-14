@@ -283,7 +283,8 @@ def collect_and_synthesize_queue(
             None,
             "所有输入框均为空，请至少填写一个文本输入",
             gr.update(visible=False),
-            gr.update(interactive=True),
+            gr.update(interactive=True),  # Left generate button
+            gr.update(interactive=True),  # Right generate button
             *empty_audio_updates,
             *empty_download_updates,
         )
@@ -465,7 +466,8 @@ def collect_and_synthesize_queue(
         preview_audio_value,
         final_info_message,
         download_file_update,
-        gr.update(interactive=True),
+        gr.update(interactive=True),  # Left generate button
+        gr.update(interactive=True),  # Right generate button
         *audio_preview_updates,
         *download_updates,
     )
@@ -525,7 +527,8 @@ def change_component_language(lang, *remarks):
             updates.append(gr.update(label=f"Task {i+1} Download"))
     
     updates.extend([
-        gr.update(value=i18n("generate_btn_label")),
+        gr.update(value=i18n("generate_btn_label")),  # Left generate button
+        gr.update(value=i18n("generate_btn_label")),  # Right generate button
         gr.update(label=i18n("generated_audio_label")),
         gr.update(value=f"➕ {i18n('add_speaker_btn_label')}"),
         gr.update(label=i18n('quick_add_num_label')),

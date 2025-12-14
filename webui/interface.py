@@ -36,6 +36,9 @@ CSS = """
 .section-header { margin-top: 10px; margin-bottom: 5px; font-size: 1.1em; font-weight: bold; color: #444; }
 .generate-btn { font-size: 1.3em !important; font-weight: bold !important; min-height: 80px !important; }
 .tab-nav { border-bottom: none !important; }
+/* Hide tabs navigation when accordion is closed */
+details:not([open]) .tab-nav { display: none !important; }
+details:not([open]) .tab-nav-container { display: none !important; }
 """
 
 def render_interface() -> gr.Blocks:
@@ -141,7 +144,8 @@ def render_interface() -> gr.Blocks:
                         dialogue_text_input = gr.Textbox(
                             label=f"{i18n('dialogue_text_input_label')} {i+1}",
                             placeholder=i18n("dialogue_text_input_placeholder"),
-                            lines=12,
+                            lines=6,
+                            max_lines=12,
                             visible=(i < 1),
                         )
                         dialogue_text_inputs_list.append(dialogue_text_input)
@@ -159,39 +163,14 @@ def render_interface() -> gr.Blocks:
                     outputs=[num_text_inputs_state] + dialogue_text_inputs_list + dialogue_audio_preview_list + dialogue_download_list
                 )
 
-                # --- 3. Bottom Controls ---
-                gr.Markdown("### ⚙️ 全局设置 & 生成 / Global Settings & Generate", elem_classes=["section-header"])
+                # --- 3. Generate Button ---
+                gr.Markdown("### ⚙️ 生成 / Generate", elem_classes=["section-header"])
                 
-                with gr.Group():
-                    with gr.Row():
-                        lang_choice = gr.Dropdown(
-                            choices=["中文", "English"],
-                            value="中文",
-                            label="语言/Language",
-                            interactive=True,
-                            scale=1
-                        )
-                        seed_input = gr.Number(
-                            label="Seed (种子)",
-                            value=1988,
-                            step=1,
-                            interactive=True,
-                            scale=1,
-                        )
-                        diff_spk_pause_input = gr.Number(
-                            label="停顿(ms)",
-                            value=0,
-                            minimum=0,
-                            step=50,
-                            interactive=True,
-                            scale=1,
-                        )
-                    
-                    generate_btn = gr.Button(
-                        value=i18n("generate_btn_label"),
-                        variant="primary",
-                        elem_classes=["generate-btn"],
-                    )
+                generate_btn = gr.Button(
+                    value=i18n("generate_btn_label"),
+                    variant="primary",
+                    elem_classes=["generate-btn"],
+                )
 
             # ================= RIGHT COLUMN: Finished Goods Warehouse (30%) =================
             with gr.Column(scale=3):
@@ -218,13 +197,52 @@ def render_interface() -> gr.Blocks:
                     load_uploaded_status = gr.Textbox(visible=False) # Hidden status for upload
 
                     gr.Markdown("---")
+                    gr.Markdown("**导出配置**")
+                    export_config_name_input = gr.Textbox(
+                        label="配置名称（可选）",
+                        placeholder="留空将使用默认名称",
+                        lines=1,
+                        interactive=True
+                    )
                     with gr.Row():
                         export_config_btn = gr.Button("导出当前配置", size="sm")
                         export_config_file = gr.File(label="导出文件", interactive=False, height=50)
                     export_config_status = gr.Textbox(label="状态", interactive=False, lines=1, show_label=False)
 
+                # --- Global Settings (Collapsed Menu) ---
+                with gr.Accordion("⚙️ 全局设置 / Global Settings", open=False):
+                    lang_choice = gr.Dropdown(
+                        choices=["中文", "English"],
+                        value="中文",
+                        label="语言/Language",
+                        interactive=True,
+                        scale=1
+                    )
+                    seed_input = gr.Number(
+                        label="Seed (种子)",
+                        value=1988,
+                        step=1,
+                        interactive=True,
+                        scale=1,
+                    )
+                    diff_spk_pause_input = gr.Number(
+                        label="停顿(ms)",
+                        value=0,
+                        minimum=0,
+                        step=50,
+                        interactive=True,
+                        scale=1,
+                    )
+
                 # --- Output Area ---
                 gr.Markdown("### 🔊 当前结果 / Output", elem_classes=["section-header"])
+                
+                # Generate button above output area
+                generate_btn_right = gr.Button(
+                    value=i18n("generate_btn_label"),
+                    variant="primary",
+                    elem_classes=["generate-btn"],
+                )
                 
                 generate_audio = gr.Audio(
                     label="完整音频",
@@ -327,6 +345,7 @@ def render_interface() -> gr.Blocks:
                 diff_spk_pause_input,
                 speakers_state,
                 num_text_inputs_state,
+                export_config_name_input,
                 *dialogue_text_inputs_list,
                 *all_speaker_inputs_for_config,
             ],
@@ -388,6 +407,7 @@ def render_interface() -> gr.Blocks:
                 speaker_dialect_list[i]
             ])
         
+        # Left column generate button
         generate_btn.click(
             fn=collect_and_synthesize_queue,
             inputs=(
@@ -401,6 +421,27 @@ def render_interface() -> gr.Blocks:
                 separated_files_info,
                 download_file,
                 generate_btn,
+                generate_btn_right,
+                *dialogue_audio_preview_list,
+                *dialogue_download_list,
+            ],
+        )
+        
+        # Right column generate button (same function)
+        generate_btn_right.click(
+            fn=collect_and_synthesize_queue,
+            inputs=(
+                [num_text_inputs_state] +
+                [speakers_state, seed_input, diff_spk_pause_input] +
+                dialogue_text_inputs_list +
+                all_speaker_inputs
+            ),
+            outputs=[
+                generate_audio,
+                separated_files_info,
+                download_file,
+                generate_btn,
+                generate_btn_right,
                 *dialogue_audio_preview_list,
                 *dialogue_download_list,
             ],
@@ -447,6 +488,7 @@ def render_interface() -> gr.Blocks:
                 dialogue_download_list +
                 [
                     generate_btn,
+                    generate_btn_right,  # Right column generate button
                     generate_audio,
                     add_speaker_btn,
                     quick_add_num, # hidden but exists
