@@ -209,21 +209,7 @@ def apply_loaded_config(cfg: dict) -> Tuple[list, str]:
                 dict(audio=None, text="", dialect="", remark="")
             )
 
-    # speaker checkboxes
-    for i in range(MAX_SPEAKERS):
-        if i < num_speakers:
-            remark_val = normalized_speakers[i]["remark"]
-            result.append(
-                gr.update(
-                    visible=True,
-                    value=False,
-                    label=get_speaker_display_label(i + 1, remark_val),
-                )
-            )
-        else:
-            result.append(gr.update(visible=False, value=False))
-
-    # speaker audio, text, dialect, remark
+    # speaker audio, text, dialect, remark (先更新这些字段，以便后续标签更新能读取到正确的备注值)
     audio_updates = []
     text_updates = []
     dialect_updates = []
@@ -239,7 +225,21 @@ def apply_loaded_config(cfg: dict) -> Tuple[list, str]:
     result.extend(dialect_updates)
     result.extend(remark_updates)
 
-    # speaker tabs
+    # speaker checkboxes (在备注字段更新后，使用最新的备注值更新标签)
+    for i in range(MAX_SPEAKERS):
+        if i < num_speakers:
+            remark_val = normalized_speakers[i]["remark"]
+            result.append(
+                gr.update(
+                    visible=True,
+                    value=False,
+                    label=get_speaker_display_label(i + 1, remark_val),
+                )
+            )
+        else:
+            result.append(gr.update(visible=False, value=False))
+
+    # speaker tabs (在备注字段更新后，使用最新的备注值更新标签)
     for i in range(MAX_SPEAKERS):
         result.append(
             gr.update(

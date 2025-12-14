@@ -208,8 +208,6 @@ def update_speaker_accordion_label(num_speakers: int, *remarks):
         title = "👥 说话人设置 / Speakers"
     
     return gr.update(label=title)
-    
-    return gr.update(label=title)
 
 
 def _build_speaker_labels(num_speakers: int, remarks=None):
