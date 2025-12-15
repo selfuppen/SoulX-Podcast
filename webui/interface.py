@@ -25,6 +25,7 @@ from .callbacks import (
     selection_group_to_checkboxes,
     select_all_selection_group,
     select_none_selection_group,
+    refresh_all_speaker_labels_after_load,
 )
 from .config_manager import (
     export_current_config,
@@ -457,6 +458,10 @@ def render_interface() -> gr.Blocks:
                 load_uploaded_status,
             ],
         ).then(
+            fn=refresh_all_speaker_labels_after_load,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[*speaker_checkbox_list, *speaker_tabs_list],
+        ).then(
             fn=update_speaker_accordion_label,
             inputs=[speakers_state] + speaker_remark_list,
             outputs=[speaker_accordion],
@@ -485,6 +490,10 @@ def render_interface() -> gr.Blocks:
                 *dialogue_text_inputs_list,
                 load_selected_status,
             ],
+        ).then(
+            fn=refresh_all_speaker_labels_after_load,
+            inputs=[speakers_state] + speaker_remark_list,
+            outputs=[*speaker_checkbox_list, *speaker_tabs_list],
         ).then(
             fn=update_speaker_accordion_label,
             inputs=[speakers_state] + speaker_remark_list,

@@ -194,6 +194,10 @@ def apply_loaded_config(cfg: dict) -> Tuple[list, str]:
                 if not os.path.exists(audio_path):
                     warnings.append(f"说话人{i+1}参考语音不存在: {audio_path}")
                     audio_path = None
+                elif os.path.isdir(audio_path):
+                    # 如果路径是目录而不是文件，设置为 None
+                    warnings.append(f"说话人{i+1}参考语音路径是目录而非文件: {audio_path}")
+                    audio_path = None
             else:
                 audio_path = None
             normalized_speakers.append(
@@ -208,6 +212,21 @@ def apply_loaded_config(cfg: dict) -> Tuple[list, str]:
             normalized_speakers.append(
                 dict(audio=None, text="", dialect="", remark="")
             )
+
+    # speaker checkboxes (在备注字段更新后，使用最新的备注值更新标签)
+    # 注意：顺序必须与 interface.py 中的 outputs 列表匹配
+    for i in range(MAX_SPEAKERS):
+        if i < num_speakers:
+            remark_val = normalized_speakers[i]["remark"]
+            result.append(
+                gr.update(
+                    visible=True,
+                    value=False,
+                    label=get_speaker_display_label(i + 1, remark_val),
+                )
+            )
+        else:
+            result.append(gr.update(visible=False, value=False))
 
     # speaker audio, text, dialect, remark (先更新这些字段，以便后续标签更新能读取到正确的备注值)
     audio_updates = []
@@ -224,20 +243,6 @@ def apply_loaded_config(cfg: dict) -> Tuple[list, str]:
     result.extend(text_updates)
     result.extend(dialect_updates)
     result.extend(remark_updates)
-
-    # speaker checkboxes (在备注字段更新后，使用最新的备注值更新标签)
-    for i in range(MAX_SPEAKERS):
-        if i < num_speakers:
-            remark_val = normalized_speakers[i]["remark"]
-            result.append(
-                gr.update(
-                    visible=True,
-                    value=False,
-                    label=get_speaker_display_label(i + 1, remark_val),
-                )
-            )
-        else:
-            result.append(gr.update(visible=False, value=False))
 
     # speaker tabs (在备注字段更新后，使用最新的备注值更新标签)
     for i in range(MAX_SPEAKERS):

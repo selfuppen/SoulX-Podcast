@@ -185,6 +185,37 @@ def update_single_speaker_label(remark: str, idx: int):
     return gr.update(label=label), gr.update(label=label)
 
 
+def refresh_all_speaker_labels_after_load(num_speakers: int, *remarks):
+    """
+    配置加载后，显式刷新所有说话人的复选框和Tab标签
+    这个函数用于解决配置加载时标签不立即更新的问题
+    """
+    from datetime import datetime
+    current_time = datetime.now().strftime('%H-%M-%S')
+    print(f"[{current_time}] 刷新所有说话人标签...")
+    
+    remark_list = list(remarks) if remarks else []
+    num = int(num_speakers) if num_speakers else 1
+    num = max(1, min(num, MAX_SPEAKERS))
+    
+    checkbox_updates = []
+    tab_updates = []
+    
+    for i in range(MAX_SPEAKERS):
+        remark_val = remark_list[i] if i < len(remark_list) else ""
+        label = get_speaker_display_label(i + 1, remark_val)
+        
+        if i < num:
+            checkbox_updates.append(gr.update(label=label, visible=True))
+            tab_updates.append(gr.update(label=label, visible=True))
+        else:
+            checkbox_updates.append(gr.update(label=label, visible=False))
+            tab_updates.append(gr.update(label=label, visible=False))
+    
+    print(f"[{current_time}] 已刷新 {num} 个说话人的标签")
+    return (*checkbox_updates, *tab_updates)
+
+
 def update_speaker_accordion_label(num_speakers: int, *remarks):
     """
     更新说话人设置 Accordion 的标题，显示所有说话人的标签信息
