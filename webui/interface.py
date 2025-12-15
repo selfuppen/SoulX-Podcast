@@ -510,7 +510,8 @@ def render_interface() -> gr.Blocks:
             all_speaker_inputs.extend([
                 speaker_audio_list[i],
                 speaker_text_list[i],
-                speaker_dialect_list[i]
+                speaker_dialect_list[i],
+                speaker_remark_list[i]  # 添加备注信息
             ])
         
         # Left column generate button
@@ -518,7 +519,7 @@ def render_interface() -> gr.Blocks:
             fn=collect_and_synthesize_queue,
             inputs=(
                 [num_text_inputs_state] +
-                [speakers_state, seed_input, diff_spk_pause_input, task_pause_input] +
+                [speakers_state, seed_input, diff_spk_pause_input, task_pause_input, lang_choice] +
                 dialogue_text_inputs_list +
                 all_speaker_inputs
             ),
@@ -538,7 +539,7 @@ def render_interface() -> gr.Blocks:
             fn=collect_and_synthesize_queue,
             inputs=(
                 [num_text_inputs_state] +
-                [speakers_state, seed_input, diff_spk_pause_input, task_pause_input] +
+                [speakers_state, seed_input, diff_spk_pause_input, task_pause_input, lang_choice] +
                 dialogue_text_inputs_list +
                 all_speaker_inputs
             ),

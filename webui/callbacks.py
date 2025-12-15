@@ -22,7 +22,8 @@ from .i18n import (
     set_language,
 )
 from .synthesis import dialogue_synthesis_function
-from .file_manager import create_all_zip
+from .file_manager import create_all_zip, write_json_file
+from .config_manager import build_current_config_dict
 
 
 # =============================================================================
@@ -330,7 +331,10 @@ def process_single_synthesis(
     current_time = datetime.now().strftime('%H-%M-%S')
     
     speaker_configs = []
-    for i in range(0, min(num_speakers * 3, len(speaker_args)), 3):
+    # 支持两种格式：3个一组（audio, text, dialect）或4个一组（audio, text, dialect, remark）
+    # 根据参数数量自动判断格式
+    step = 4 if len(speaker_args) >= num_speakers * 4 else 3
+    for i in range(0, min(num_speakers * step, len(speaker_args)), step):
         if i + 2 < len(speaker_args):
             audio = speaker_args[i] if speaker_args[i] is not None else None
             text = speaker_args[i+1] if speaker_args[i+1] is not None else ""
@@ -393,11 +397,13 @@ def collect_and_synthesize_queue(
     seed,
     diff_spk_pause_ms,
     task_pause_ms,
+    language_idx,
     *all_text_and_speaker_args
 ):
     """
     处理队列中的所有任务（生成器版本，每完成一个任务就更新预览）
-    all_text_and_speaker_args格式: (text1, ..., textN, audio1, text1, dialect1, ...)
+    all_text_and_speaker_args格式: (text1, ..., textN, audio1, text1, dialect1, remark1, audio2, text2, dialect2, remark2, ...)
+    language_idx: 语言索引 (0=中文, 1=English 或 "中文"/"English")
     task_pause_ms: 任务间的停顿时间（毫秒）
     """
     global_lang = get_language()
@@ -743,6 +749,7 @@ def collect_and_synthesize_queue(
     if all_zip_path and os.path.exists(all_zip_path):
         final_info_message += f"   📦 所有文件压缩包: {os.path.basename(all_zip_path)}\n"
     final_info_message += f"   📝 日志文件: synthesis.log\n"
+    final_info_message += f"   ⚙️ 配置文件: config.json\n"
     final_info_message += "\n"
     final_info_message += "═══════════════════════════════════\n\n"
     final_info_message += "\n\n".join(all_info_messages)
@@ -807,6 +814,54 @@ def collect_and_synthesize_queue(
             # 文本输入框不可见，预览组件也不可见
             final_audio_preview_updates.append(gr.update(visible=False))
             final_download_updates.append(gr.update(visible=False))
+    
+    # 导出配置到任务目录
+    try:
+        current_time = datetime.now().strftime('%H-%M-%S')
+        print(f"[{current_time}] 开始导出配置到任务目录...")
+        
+        # 构建配置字典
+        # speaker_args 格式：每4个一组 (audio, text, dialect, remark)
+        # 但需要确保长度符合 MAX_SPEAKERS * 4 的要求
+        speaker_values = list(speaker_args)
+        
+        # 确保 speaker_values 长度符合要求（MAX_SPEAKERS * 4）
+        # 如果不足，补齐空值
+        expected_length = MAX_SPEAKERS * 4
+        while len(speaker_values) < expected_length:
+            # 根据位置判断应该填充什么类型的值
+            idx = len(speaker_values)
+            if idx % 4 == 0:
+                # audio 位置，填充 None
+                speaker_values.append(None)
+            else:
+                # text, dialect, remark 位置，填充空字符串
+                speaker_values.append("")
+        
+        config_dict = build_current_config_dict(
+            language_idx=language_idx,
+            seed=seed,
+            diff_spk_pause_ms=diff_spk_pause_ms,
+            task_pause_ms=task_pause_ms,
+            num_speakers=num_speaker,
+            num_text_inputs=num_text,
+            text_inputs=text_inputs,
+            speaker_values=speaker_values,
+        )
+        
+        # 保存配置到任务目录
+        config_file_path = os.path.join(base_output_dir, "config.json")
+        write_json_file(config_file_path, config_dict)
+        current_time = datetime.now().strftime('%H-%M-%S')
+        print(f"[{current_time}] ✅ 配置已导出到: {config_file_path}")
+        write_log_to_file(f"[{current_time}] ✅ 配置已导出到: {config_file_path}", log_file_path)
+    except Exception as e:
+        current_time = datetime.now().strftime('%H-%M-%S')
+        error_msg = f"导出配置失败: {str(e)}"
+        print(f"[{current_time}] [ERROR] {error_msg}")
+        write_log_to_file(f"[{current_time}] [ERROR] {error_msg}", log_file_path)
+        import traceback
+        traceback.print_exc()
     
     download_file_update = None
     if all_zip_path and os.path.exists(all_zip_path):
